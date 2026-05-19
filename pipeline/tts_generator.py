@@ -103,9 +103,11 @@ def _apply_ssml_markup(text: str, niche: str) -> str | None:
     # (only & needs escaping in text nodes; < > are only in our injected tags)
     ssml_text = ssml_text.replace("&", "&amp;")
 
+    # Note: Studio voices (en-US-Studio-*) do NOT support pitch= in prosody.
+    # Only rate= is supported. Neural2/Wavenet voices support both.
     return (
         '<speak>'
-        '<prosody rate="90%" pitch="-1st">'
+        '<prosody rate="90%">'
         + ssml_text +
         '</prosody>'
         '</speak>'
@@ -224,7 +226,7 @@ def _split_ssml(ssml: str, max_chars: int = 4500) -> list[str]:
         return [ssml]
     inner = match.group(1)
     header_match = re.search(r'(<speak><prosody[^>]*>)', ssml)
-    header = header_match.group(1) if header_match else '<speak><prosody rate="90%" pitch="-1st">'
+    header = header_match.group(1) if header_match else '<speak><prosody rate="90%">'
     footer = '</prosody></speak>'
 
     # Split inner content at sentence-ending punctuation
