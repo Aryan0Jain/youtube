@@ -63,6 +63,9 @@ class NicheProfile:
     # ── Music ─────────────────────────────────────────────────────────────────
     music_file: Optional[str]     # filename under music/ directory; None = no music
 
+    # ── Trend discovery ───────────────────────────────────────────────────────
+    trend_keywords: tuple          # seed keywords for Google Trends queries
+
 
 # ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -132,6 +135,7 @@ def _load_profiles(yaml_path: Path) -> dict[str, NicheProfile]:
             subtitle_style=str(data["subtitle_style"]),
             overlay_type=str(data.get("overlay_type", "none")),
             music_file=data.get("music_file") or None,
+            trend_keywords=tuple(data.get("trend_keywords") or []),
         )
 
     log.debug(f"Loaded {len(profiles)} niche profiles: {list(profiles.keys())}")

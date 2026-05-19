@@ -12,7 +12,7 @@ USE_MOCK = os.environ.get("USE_MOCK_YOUTUBE") == "1"
 NICHE_CATEGORY_MAP = {
     "horror":      "24",   # Entertainment
     "quiz":        "26",   # Howto & Style
-    "comparison":  "28",   # Science & Technology
+    "historical_versus": "28",   # Science & Technology
     "what_if":     "28",
     "shock_facts": "28",
     "ranking":     "28",

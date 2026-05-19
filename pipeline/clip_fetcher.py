@@ -77,6 +77,7 @@ class ClipFetcher(PipelineStage):
             segment_duration_sec=SEGMENT_DURATION_SEC,
             audio_duration_sec=audio_duration,
             haiku_model=haiku_model,
+            niche=ctx.niche,
         )
         log.info(f"Segment keywords ({len(segment_keywords)}): {segment_keywords}")
 

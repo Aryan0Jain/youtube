@@ -16,7 +16,7 @@ series:
     display_name: "My First Series"
     playlist_id:                         # optional YouTube playlist ID (PLxxxx...)
     format: full_length                  # "full_length" | "shorts"
-    niche: what_if                       # horror | what_if | comparison | quiz | shock_facts | ranking | myth_busting | custom
+    niche: what_if                       # horror | what_if | historical_versus | quiz | shock_facts | ranking | myth_busting | custom
     style_notes: >
       Describe the tone, persona, and structure expected from the script.
       This is injected directly into the Claude system prompt.

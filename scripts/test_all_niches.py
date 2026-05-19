@@ -1,5 +1,5 @@
 """
-test_all_niches.py — Full pipeline test for all 7 niches.
+test_all_niches.py -- Full pipeline test for all 7 niches.
 
 For each niche:
   Stage 1: Generate script (real Claude Opus, niche-specific prompt)
@@ -9,12 +9,12 @@ For each niche:
   Stage 5: Assemble 90-second video (Ken Burns + overlays + LUFS)
 
 Output: dev/workspace_<niche>/
-        ├── script.txt
-        ├── audio.mp3
-        ├── subtitles.srt
-        ├── clips/
-        ├── final_video.mp4
-        └── test_summary.txt
+        ├-- script.txt
+        ├-- audio.mp3
+        ├-- subtitles.srt
+        ├-- clips/
+        ├-- final_video.mp4
+        └-- test_summary.txt
 
 Run: python scripts/test_all_niches.py
 """
@@ -45,15 +45,15 @@ logging.basicConfig(
 )
 log = logging.getLogger("test_all_niches")
 
-# ── Niche → Topic mapping ─────────────────────────────────────────────────────
+# -- Niche -> Topic mapping -----------------------------------------------------
 NICHE_TOPICS = {
-    "horror":       "The Dyatlov Pass Incident",
-    "what_if":      "What If All the World's Bees Disappeared Tomorrow",
-    "shock_facts":  "10 Shocking Facts About the Human Brain",
-    "quiz":         "The Ultimate World Capitals Quiz",
-    "ranking":      "Top 10 Most Extreme Natural Disasters in History",
-    "comparison":   "iPhone vs Android: Which Is Actually Better?",
-    "myth_busting": "The Great Wall of China Can Be Seen from Space",
+    "horror":             "The Isdal Woman: Norway's Most Mysterious Unsolved Death",
+    "what_if":            "What If All Satellites Disappeared Overnight",
+    "shock_facts":        "10 Shocking Facts About the Human Brain",
+    "quiz":               "The Ultimate World Capitals Quiz",
+    "ranking":            "Top 10 Most Extreme Natural Disasters in History",
+    "historical_versus":  "Roman Empire vs Han Dynasty: Which Shaped the Modern World More?",
+    "myth_busting":       "The Great Wall of China Can Be Seen from Space",
 }
 
 FORMAT = "full_length"
@@ -68,13 +68,13 @@ BASE_DIR = Path(__file__).parent.parent
 RESULTS: dict[str, dict] = {}
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------------------
 
 def section(msg: str):
     log.info("")
-    log.info("─" * 70)
+    log.info("-" * 70)
     log.info(f"  {msg}")
-    log.info("─" * 70)
+    log.info("-" * 70)
 
 
 def probe_duration(path: Path) -> float:
@@ -94,7 +94,7 @@ def srt_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-# ── Stage functions ───────────────────────────────────────────────────────────
+# -- Stage functions -----------------------------------------------------------
 
 def stage1_script(ws: Path, niche: str, topic: str,
                   profile, spec, model: str, haiku_model: str, max_tokens: int) -> str:
@@ -112,7 +112,7 @@ def stage1_script(ws: Path, niche: str, topic: str,
     )
     (ws / "script.txt").write_text(script, encoding="utf-8")
     wc = len(script.split())
-    log.info(f"[{niche}] script.txt → {wc} words (target: {profile.target_word_count})")
+    log.info(f"[{niche}] script.txt -> {wc} words (target: {profile.target_word_count})")
 
     # Extract niche overlay metadata
     log.info(f"[{niche}] Extracting niche metadata (overlay_type={profile.overlay_type})...")
@@ -125,7 +125,7 @@ def stage1_script(ws: Path, niche: str, topic: str,
         )
         items = niche_metadata.get("items", [])
         count = len(items) if isinstance(items, list) else (1 if items else 0)
-        log.info(f"[{niche}] niche_metadata.json → overlay={niche_metadata.get('overlay_type')}, {count} items")
+        log.info(f"[{niche}] niche_metadata.json -> overlay={niche_metadata.get('overlay_type')}, {count} items")
 
     return script
 
@@ -135,54 +135,79 @@ def stage2_tts(ws: Path, niche: str, script: str, profile, spec) -> Path:
     from pydub import AudioSegment
 
     audio_path = ws / "audio.mp3"
-    VOICE_MAP = {
-        "horror":       "en-US-Neural2-J",
-        "what_if":      "en-US-Neural2-D",
-        "shock_facts":  "en-US-Neural2-D",
-        "quiz":         "en-US-Neural2-F",
-        "ranking":      "en-US-Neural2-D",
-        "comparison":   "en-US-Neural2-D",
-        "myth_busting": "en-US-Neural2-D",
-    }
-    voice_name = VOICE_MAP.get(niche, "en-US-Neural2-D")
+    # Use niche-aware Studio/Journey voices (significantly better than Neural2)
+    from pipeline.tts_generator import _get_google_voice, _apply_ssml_markup, _split_ssml
+    voice_name = _get_google_voice(niche)
     speaking_rate = profile.speaking_rate * spec.speaking_rate_multiplier
 
     log.info(f"[{niche}] Stage 2: Google TTS voice={voice_name} rate={speaking_rate:.2f}")
 
-    # Split into chunks
-    sentences = re.split(r'(?<=[.!?])\s+', script)
-    chunks, current = [], ""
-    for s in sentences:
-        candidate = (current + " " + s).strip()
-        if len(candidate.encode("utf-8")) > 4800:
-            if current:
-                chunks.append(current)
-            current = s
-        else:
-            current = candidate
-    if current:
-        chunks.append(current)
-    if not chunks:
-        chunks = [script[:4800]]
+    # Split into chunks (plain text fallback)
+    def _split(text, max_bytes=4800):
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        chunks_out, current = [], ""
+        for s in sentences:
+            candidate = (current + " " + s).strip()
+            if len(candidate.encode("utf-8")) > max_bytes:
+                if current:
+                    chunks_out.append(current)
+                current = s
+            else:
+                current = candidate
+        if current:
+            chunks_out.append(current)
+        return chunks_out or [text[:max_bytes]]
 
     client = texttospeech.TextToSpeechClient()
     segments: list[bytes] = []
 
-    for i, chunk in enumerate(chunks):
-        resp = client.synthesize_speech(
-            input=texttospeech.SynthesisInput(text=chunk),
-            voice=texttospeech.VoiceSelectionParams(
-                language_code="-".join(voice_name.split("-")[:2]),
-                name=voice_name,
-            ),
-            audio_config=texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3,
-                speaking_rate=speaking_rate,
-                pitch=0.0,
-            ),
-        )
-        segments.append(resp.audio_content)
-        log.info(f"[{niche}]   TTS chunk {i+1}/{len(chunks)}: {len(resp.audio_content)//1024} KB")
+    # Use SSML for horror/ranking to add dramatic pauses and prosody
+    ssml_body = _apply_ssml_markup(script, niche)
+    if ssml_body:
+        ssml_chunks = _split_ssml(ssml_body, max_chars=4500)
+        log.info(f"[{niche}]   SSML mode: {len(ssml_chunks)} chunk(s)")
+        for i, ssml_chunk in enumerate(ssml_chunks):
+            try:
+                resp = client.synthesize_speech(
+                    input=texttospeech.SynthesisInput(ssml=ssml_chunk),
+                    voice=texttospeech.VoiceSelectionParams(
+                        language_code="en-US", name=voice_name),
+                    audio_config=texttospeech.AudioConfig(
+                        audio_encoding=texttospeech.AudioEncoding.MP3,
+                        speaking_rate=speaking_rate, pitch=0.0),
+                )
+                segments.append(resp.audio_content)
+                log.info(f"[{niche}]   ssml chunk {i+1}/{len(ssml_chunks)}: {len(resp.audio_content)//1024} KB")
+            except Exception as exc:
+                log.warning(f"[{niche}]   SSML chunk {i+1} failed ({exc}), using plain text")
+                plain = _split(script)[min(i, len(_split(script)) - 1)]
+                resp = client.synthesize_speech(
+                    input=texttospeech.SynthesisInput(text=plain),
+                    voice=texttospeech.VoiceSelectionParams(
+                        language_code="en-US", name=voice_name),
+                    audio_config=texttospeech.AudioConfig(
+                        audio_encoding=texttospeech.AudioEncoding.MP3,
+                        speaking_rate=speaking_rate, pitch=0.0),
+                )
+                segments.append(resp.audio_content)
+    else:
+        chunks = _split(script)
+        log.info(f"[{niche}]   plain-text mode: {len(chunks)} chunk(s)")
+        for i, chunk in enumerate(chunks):
+            resp = client.synthesize_speech(
+                input=texttospeech.SynthesisInput(text=chunk),
+                voice=texttospeech.VoiceSelectionParams(
+                    language_code="-".join(voice_name.split("-")[:2]),
+                    name=voice_name,
+                ),
+                audio_config=texttospeech.AudioConfig(
+                    audio_encoding=texttospeech.AudioEncoding.MP3,
+                    speaking_rate=speaking_rate,
+                    pitch=0.0,
+                ),
+            )
+            segments.append(resp.audio_content)
+            log.info(f"[{niche}]   TTS chunk {i+1}/{len(chunks)}: {len(resp.audio_content)//1024} KB")
 
     if len(segments) == 1:
         audio_path.write_bytes(segments[0])
@@ -193,7 +218,7 @@ def stage2_tts(ws: Path, niche: str, script: str, profile, spec) -> Path:
         combined.export(str(audio_path), format="mp3")
 
     dur = probe_duration(audio_path)
-    log.info(f"[{niche}] audio.mp3 → {audio_path.stat().st_size//1024} KB, {dur:.1f}s")
+    log.info(f"[{niche}] audio.mp3 -> {audio_path.stat().st_size//1024} KB, {dur:.1f}s")
     return audio_path
 
 
@@ -230,7 +255,7 @@ def stage3_subtitles(ws: Path, niche: str, audio_path: Path, script: str) -> Pat
                     idx += 1
 
         srt_path.write_text("\n".join(entries), encoding="utf-8")
-        log.info(f"[{niche}] subtitles.srt → {idx-1} entries")
+        log.info(f"[{niche}] subtitles.srt -> {idx-1} entries")
 
     except Exception as exc:
         log.warning(f"[{niche}] Whisper failed ({exc}), using estimated SRT")
@@ -242,7 +267,7 @@ def stage3_subtitles(ws: Path, niche: str, audio_path: Path, script: str) -> Pat
             entries.append(f"{idx}\n{srt_time(t)} --> {srt_time(t+dur)}\n{' '.join(group)}\n")
             t += dur; idx += 1
         srt_path.write_text("\n".join(entries), encoding="utf-8")
-        log.info(f"[{niche}] subtitles.srt (estimated) → {idx-1} entries")
+        log.info(f"[{niche}] subtitles.srt (estimated) -> {idx-1} entries")
 
     return srt_path
 
@@ -266,6 +291,7 @@ def stage4_clips(ws: Path, niche: str, script: str, audio_path: Path,
         segment_duration_sec=seg_dur,
         audio_duration_sec=effective_dur,
         haiku_model=haiku_model,
+        niche=niche,
     )
     log.info(f"[{niche}] Keywords: {keywords}")
 
@@ -287,7 +313,7 @@ def stage4_clips(ws: Path, niche: str, script: str, audio_path: Path,
         clip_idx += len(new)
         log.info(f"[{niche}]   '{kw}': {len(new)} clips  (total: {len(all_clips)})")
 
-    log.info(f"[{niche}] clips/ → {len(all_clips)} unique clips ({len(seen_ids)} unique Pexels IDs)")
+    log.info(f"[{niche}] clips/ -> {len(all_clips)} unique clips ({len(seen_ids)} unique Pexels IDs)")
     return sorted(clips_dir.glob("*.mp4"))
 
 
@@ -314,11 +340,11 @@ def stage5_video(ws: Path, niche: str, clip_paths: list[Path],
         script_text=script,
     )
     size_mb = result.stat().st_size / 1024 / 1024
-    log.info(f"[{niche}] final_video.mp4 → {size_mb:.1f} MB")
+    log.info(f"[{niche}] final_video.mp4 -> {size_mb:.1f} MB")
     return result
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# -- Main ----------------------------------------------------------------------
 
 def run_niche(niche: str, topic: str):
     from formats import get_format_spec
@@ -346,7 +372,7 @@ def run_niche(niche: str, topic: str):
     }
     t_start = time.time()
 
-    section(f"NICHE: {niche.upper()} — {topic}")
+    section(f"NICHE: {niche.upper()} -- {topic}")
 
     # Stage 1: Script
     try:
@@ -435,19 +461,19 @@ def run_niche(niche: str, topic: str):
         f"TOPIC: {topic}",
         f"TOTAL TIME: {result['total_time_s']}s",
         "",
-        "── SCRIPT ───────────────────────────────────────────",
+        "-- SCRIPT -------------------------------------------",
         f"Words: {result['stages'].get('script', {}).get('words', '?')}",
         "",
         "Hook (first 50 words):",
         result["stages"].get("script", {}).get("hook", ""),
         "",
-        "── STAGES ───────────────────────────────────────────",
+        "-- STAGES -------------------------------------------",
     ]
     for stage, data in result["stages"].items():
         summary_lines.append(f"  {stage}: {data}")
     if result["errors"]:
         summary_lines.append("")
-        summary_lines.append("── ERRORS ───────────────────────────────────────────")
+        summary_lines.append("-- ERRORS -------------------------------------------")
         for e in result["errors"]:
             summary_lines.append(f"  {e}")
 
@@ -456,7 +482,7 @@ def run_niche(niche: str, topic: str):
 
 
 def main():
-    section("TEST ALL NICHES — Full Pipeline")
+    section("TEST ALL NICHES -- Full Pipeline")
     log.info(f"Niches: {list(NICHE_TOPICS.keys())}")
     log.info(f"Video cap: {TEST_VIDEO_MAX_SEC}s per niche | Clips per segment: {TEST_CLIPS_PER_SEGMENT}")
     log.info("")
@@ -470,8 +496,8 @@ def main():
             log.error(f"Niche '{niche}' crashed: {exc}")
             all_results.append({"niche": niche, "topic": topic, "crash": str(exc)})
 
-    # ── Final summary ─────────────────────────────────────────────────────────
-    section("FINAL RESULTS — ALL NICHES")
+    # -- Final summary ---------------------------------------------------------
+    section("FINAL RESULTS -- ALL NICHES")
     for r in all_results:
         niche = r.get("niche", "?")
         errors = r.get("errors", [])

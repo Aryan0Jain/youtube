@@ -78,6 +78,7 @@ segment_keywords = claude_client.extract_segment_keywords(
     segment_duration_sec=SEGMENT_SEC,
     audio_duration_sec=audio_duration,
     haiku_model=haiku_model,
+    niche=NICHE,
 )
 log.info(f"Segment keywords ({len(segment_keywords)}): {segment_keywords}")
 

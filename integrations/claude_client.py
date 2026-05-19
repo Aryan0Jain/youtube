@@ -107,18 +107,67 @@ def extract_keywords(script_text: str, count: int, haiku_model: str) -> list[str
     return [ln for ln in lines if ln][:count]
 
 
-# ── Segment keyword extraction (per-30s, for 80-100 unique clips) ─────────────
+# ── Niche-specific keyword style instructions ─────────────────────────────────
+#
+# Topic-literal keywords ("bodies found in ravine") return wrong clips on Pexels.
+# Each niche needs a different visual strategy to find clips that feel right.
+#
+_KEYWORD_STYLE: dict[str, str] = {
+    "horror": (
+        "IMPORTANT: Return atmosphere and mood keywords, NOT topic-literal keywords. "
+        "Do NOT describe what happens in the script -- describe how it should FEEL visually. "
+        "Instead of 'bodies found in ravine' return 'dark pine forest fog'. "
+        "Instead of 'Soviet expedition camp' return 'abandoned tent snow isolation'. "
+        "Keywords should create emotional dread and tension through imagery, "
+        "not illustrate the story literally."
+    ),
+    "what_if": (
+        "IMPORTANT: Return visual consequence keywords that show the EFFECT, not the cause. "
+        "Instead of 'bees disappearing' return 'empty garden withered flowers'. "
+        "Instead of 'economic collapse' return 'empty supermarket shelves'. "
+        "Show the world AFTER the scenario -- the visible consequences."
+    ),
+    "ranking": (
+        "IMPORTANT: Return dramatic scale and impact keywords. "
+        "Instead of 'earthquake in Turkey' return 'earthquake rubble destruction aftermath'. "
+        "Instead of 'pandemic' return 'empty streets abandoned city'. "
+        "Keywords should convey scale, devastation, and magnitude -- "
+        "not just name the event."
+    ),
+    "shock_facts": (
+        "Return visually striking science and nature keywords. "
+        "Prefer close-up, dramatic, or counter-intuitive visuals: "
+        "'brain neuron glow', 'deep ocean darkness', 'cell microscope'. "
+        "Avoid generic keywords -- be specific about what makes each fact visual."
+    ),
+    "historical_versus": (
+        "Return historically evocative stock footage keywords for each segment. "
+        "Think: 'ancient Rome colosseum', 'medieval knight armor', 'samurai sword ceremony', "
+        "'roman legion march', 'ancient temple ruins'. "
+        "Avoid modern footage -- keep it historical and cinematic."
+    ),
+}
+
 
 def extract_segment_keywords(script_text: str, segment_duration_sec: float,
-                              audio_duration_sec: float, haiku_model: str) -> list[str]:
+                              audio_duration_sec: float, haiku_model: str,
+                              niche: str = "") -> list[str]:
     """
     Divide the script into ~30-second segments and extract one specific visual
     search phrase per segment. Returns a list with one entry per segment.
 
     This produces 16-20 targeted keywords for an 8-min video, allowing 80-100
     unique clips (clips_per_segment x num_segments) with no repetition.
+
+    Pass niche= for atmosphere-first keyword selection (recommended).
+    Without niche, falls back to generic topic-literal keywords.
     """
     num_segments = max(1, round(audio_duration_sec / segment_duration_sec))
+
+    # Niche-specific visual strategy instruction
+    niche_instruction = _KEYWORD_STYLE.get(niche, "")
+    if niche_instruction:
+        niche_instruction = f"\n\n{niche_instruction}"
 
     prompt = (
         f"The following YouTube script will be narrated over approximately "
@@ -126,7 +175,8 @@ def extract_segment_keywords(script_text: str, segment_duration_sec: float,
         f"~{segment_duration_sec:.0f}s each).\n\n"
         f"Divide the script into {num_segments} equal narrative segments. "
         f"For each segment, return ONE short visual search phrase (2-4 words) "
-        f"that best matches the imagery being described in that part of the script.\n\n"
+        f"that best matches the imagery being described in that part of the script."
+        f"{niche_instruction}\n\n"
         f"Requirements:\n"
         f"- Return exactly {num_segments} lines, one phrase per line\n"
         f"- Phrases must be specific and visually distinct from each other\n"

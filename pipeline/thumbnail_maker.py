@@ -22,7 +22,7 @@ class ThumbnailStyle:
 NICHE_STYLES: dict[str, ThumbnailStyle] = {
     "horror":      ThumbnailStyle((8, 0, 0),     (180, 0, 0),   (60, 0, 0),    (0, 0, 0)),
     "what_if":     ThumbnailStyle((5, 10, 40),   (255, 215, 0), (0, 100, 200), (0, 0, 0)),
-    "comparison":  ThumbnailStyle((10, 20, 80),  (255, 255, 255), (255, 50, 50), None),
+    "historical_versus": ThumbnailStyle((20, 10, 5),  (210, 170, 100), (160, 120, 60), (0, 0, 0)),
     "quiz":        ThumbnailStyle((80, 0, 180),  (255, 230, 0), (0, 180, 200), (0, 80, 120)),
     "shock_facts": ThumbnailStyle((0, 0, 0),     (255, 230, 0), (255, 80, 0),  None),
     "ranking":     ThumbnailStyle((20, 20, 25),  (255, 215, 0), (200, 160, 40), None),
