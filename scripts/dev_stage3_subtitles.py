@@ -34,7 +34,7 @@ DEV_WS   = BASE_DIR / "dev" / "workspace"
 
 audio_path = DEV_WS / "audio.mp3"
 if not audio_path.exists():
-    log.error("dev/workspace/audio.mp3 not found — run dev_stage2_tts.py first")
+    log.error("dev/workspace/audio.mp3 not found -- run dev_stage2_tts.py first")
     sys.exit(1)
 
 srt_path = DEV_WS / "subtitles.srt"
@@ -73,13 +73,13 @@ try:
                 idx += 1
 
     srt_path.write_text("\n".join(entries), encoding="utf-8")
-    log.info(f"subtitles.srt → {idx-1} entries  ({srt_path.stat().st_size} bytes)")
+    log.info(f"subtitles.srt -> {idx-1} entries  ({srt_path.stat().st_size} bytes)")
 
 except Exception as exc:
-    log.warning(f"Whisper failed ({exc}) — using estimated timing from script text")
+    log.warning(f"Whisper failed ({exc}) -- using estimated timing from script text")
     script_path = DEV_WS / "script.txt"
     if not script_path.exists():
-        log.error("No script.txt either — cannot generate fallback SRT")
+        log.error("No script.txt either -- cannot generate fallback SRT")
         sys.exit(1)
     script = script_path.read_text(encoding="utf-8")
     words = re.sub(r'\s+', ' ', script.strip()).split()
@@ -91,6 +91,6 @@ except Exception as exc:
         t += dur
         idx += 1
     srt_path.write_text("\n".join(entries), encoding="utf-8")
-    log.info(f"subtitles.srt → {idx-1} estimated entries")
+    log.info(f"subtitles.srt -> {idx-1} estimated entries")
 
 log.info("Layer 3 done. Next: python scripts/dev_stage4_clips.py")

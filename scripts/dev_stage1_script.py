@@ -67,7 +67,7 @@ script = claude_client.write_script(
 word_count = len(script.split())
 log.info(f"script.txt  -> {word_count} words  (target: {profile.target_word_count})")
 if word_count > profile.target_word_count * 1.15:
-    log.warning(f"Script is {word_count - profile.target_word_count} words over target — "
+    log.warning(f"Script is {word_count - profile.target_word_count} words over target -- "
                 "consider re-running or editing script.txt")
 
 # ── SEO metadata ──────────────────────────────────────────────────────────────

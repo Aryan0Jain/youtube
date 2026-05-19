@@ -38,7 +38,7 @@ DEV_WS   = BASE_DIR / "dev" / "workspace"
 
 video_path = DEV_WS / "final_video.mp4"
 if not video_path.exists():
-    log.error("dev/workspace/final_video.mp4 not found — run dev_stage5_video.py first")
+    log.error("dev/workspace/final_video.mp4 not found -- run dev_stage5_video.py first")
     sys.exit(1)
 
 meta_path = DEV_WS / "meta.json"
@@ -66,7 +66,7 @@ make_thumbnail(
     base_dir=BASE_DIR,
 )
 size_kb = output.stat().st_size // 1024
-log.info(f"thumbnail.jpg → {size_kb} KB")
+log.info(f"thumbnail.jpg -> {size_kb} KB")
 log.info("Layer 6 done. Open dev/workspace/thumbnail.jpg to review.")
 log.info("Happy with all layers? Run the full pipeline with:")
 log.info("  USE_MOCK_YOUTUBE=1 python scripts/run_job_now.py \\")

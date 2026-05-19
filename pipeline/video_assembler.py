@@ -281,6 +281,8 @@ def _apply_niche_overlays(
             return _overlay_scale_text(video_in, items, total_words, audio_duration, output)
         elif overlay_type == "side_labels":
             return _overlay_side_labels(video_in, items, total_words, audio_duration, output)
+        elif overlay_type == "quiz":
+            return _overlay_quiz(video_in, items, total_words, audio_duration, output)
         else:
             log.info(f"Overlay type '{overlay_type}' has no renderer -- skipping")
             return False
@@ -311,11 +313,11 @@ def _overlay_entity_cards(video_in: Path, items: list, total_words: int,
                f"color=black@0.6:t=fill:"
                f"enable='{enable}'")
         line1 = (f"drawtext=text='{text}':"
-                 f"x=30:y=ih-110:"
+                 f"x=30:y=h-110:"
                  f"fontsize=28:fontcolor=white:"
                  f"enable='{enable}'")
         line2 = (f"drawtext=text='{role}':"
-                 f"x=30:y=ih-78:"
+                 f"x=30:y=h-78:"
                  f"fontsize=20:fontcolor=0xFFCCCC:"
                  f"enable='{enable}'")
         vf_parts += [box, line1, line2]
@@ -357,11 +359,11 @@ def _overlay_fact_counter(video_in: Path, items: list, total_words: int,
         headline = _escape_drawtext(str(item.get("headline", f"FACT #{number}")))
 
         counter = (f"drawtext=text='FACT #{number}':"
-                   f"x=iw-220:y=20:"
+                   f"x=w-220:y=20:"
                    f"fontsize=36:fontcolor=yellow:"
                    f"enable='{enable}'")
         sub = (f"drawtext=text='{headline}':"
-               f"x=iw-220:y=65:"
+               f"x=w-220:y=65:"
                f"fontsize=18:fontcolor=white:"
                f"enable='{enable}'")
         vf_parts += [counter, sub]
@@ -400,11 +402,11 @@ def _overlay_ranking_cards(video_in: Path, items: list, total_words: int,
                f"color=black@0.5:t=fill:"
                f"enable='{enable}'")
         rank_text = (f"drawtext=text='#{rank}':"
-                     f"x=30:y=ih-80:"
+                     f"x=30:y=h-80:"
                      f"fontsize=52:fontcolor=0xFFD700:"
                      f"enable='{enable}'")
         name_text = (f"drawtext=text='{name}':"
-                     f"x=120:y=ih-65:"
+                     f"x=120:y=h-65:"
                      f"fontsize=36:fontcolor=white:"
                      f"enable='{enable}'")
         vf_parts += [box, rank_text, name_text]
@@ -442,11 +444,11 @@ def _overlay_myth_stamp(video_in: Path, items, total_words: int,
 
     vf_parts = [
         (f"drawtext=text='MYTH':"
-         f"x=(iw-tw)/2:y=(ih-th)/2:"
+         f"x=(w-tw)/2:y=(h-th)/2:"
          f"fontsize=96:fontcolor=red@0.85:"
          f"enable='{myth_enable}'"),
         (f"drawtext=text='{_escape_drawtext(verdict_word)}':"
-         f"x=(iw-tw)/2:y=(ih-th)/2:"
+         f"x=(w-tw)/2:y=(h-th)/2:"
          f"fontsize=96:fontcolor={verdict_color}@0.90:"
          f"enable='{verdict_enable}'"),
     ]
@@ -525,10 +527,10 @@ def _overlay_side_labels(video_in: Path, items: list, total_words: int,
              f"x=20:y=20:fontsize=28:fontcolor=white@0.85:"
              f"enable='{enable}'"),
             (f"drawtext=text='{side_b} >':"
-             f"x=iw-tw-20:y=20:fontsize=28:fontcolor=white@0.85:"
+             f"x=w-tw-20:y=20:fontsize=28:fontcolor=white@0.85:"
              f"enable='{enable}'"),
             (f"drawtext=text='{category}':"
-             f"x=(iw-tw)/2:y=20:fontsize=24:fontcolor=yellow@0.80:"
+             f"x=(w-tw)/2:y=20:fontsize=24:fontcolor=yellow@0.80:"
              f"enable='{enable}'"),
         ]
 
@@ -544,6 +546,51 @@ def _overlay_side_labels(video_in: Path, items: list, total_words: int,
         "-c:a", "copy",
         str(output),
     ], label="overlay_side_labels")
+    return True
+
+
+def _overlay_quiz(video_in: Path, items: list, total_words: int,
+                  audio_dur: float, output: Path) -> bool:
+    """Quiz: question banner at top, answer reveal banner at bottom."""
+    if not items:
+        return False
+
+    vf_parts: list[str] = []
+    for item in items[:10]:
+        ts = _word_idx_to_ts(item.get("word_idx", 0), total_words, audio_dur)
+        ans_ts = ts + 8.0  # reveal answer ~8s after question
+        end = ts + 18.0
+        q_enable = f"between(t\\,{ts:.2f}\\,{ans_ts:.2f})"
+        a_enable = f"between(t\\,{ans_ts:.2f}\\,{end:.2f})"
+
+        question = _escape_drawtext(str(item.get("question", "")))
+        answer = _escape_drawtext(str(item.get("answer", "")))
+
+        # Question: cyan banner top-center
+        vf_parts += [
+            (f"drawtext=text='{question}':"
+             f"x=(w-tw)/2:y=25:"
+             f"fontsize=30:fontcolor=cyan:"
+             f"enable='{q_enable}'"),
+            # Answer: gold banner bottom-center
+            (f"drawtext=text='Answer\\: {answer}':"
+             f"x=(w-tw)/2:y=h-55:"
+             f"fontsize=32:fontcolor=yellow:"
+             f"enable='{a_enable}'"),
+        ]
+
+    if not vf_parts:
+        return False
+
+    vf = ",".join(vf_parts)
+    _run_ffmpeg([
+        "-i", str(video_in),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "copy",
+        str(output),
+    ], label="overlay_quiz")
     return True
 
 

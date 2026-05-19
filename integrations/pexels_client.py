@@ -156,7 +156,7 @@ def download_clips_for_keyword(
             download_clip(url, dest)
             seen_ids.add(vid_id)
             downloaded.append(dest)
-            log.info(f"  [{idx}] '{keyword}' (id={vid_id}) → {dest.name}")
+            log.info(f"  [{idx}] '{keyword}' (id={vid_id}) -> {dest.name}")
         except Exception as exc:
             log.warning(f"  Download failed for '{keyword}' id={vid_id}: {exc}")
 

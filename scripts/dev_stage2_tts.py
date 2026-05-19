@@ -34,7 +34,7 @@ DEV_WS   = BASE_DIR / "dev" / "workspace"
 
 script_path = DEV_WS / "script.txt"
 if not script_path.exists():
-    log.error("dev/workspace/script.txt not found — run dev_stage1_script.py first")
+    log.error("dev/workspace/script.txt not found -- run dev_stage1_script.py first")
     sys.exit(1)
 
 script = script_path.read_text(encoding="utf-8")
@@ -50,9 +50,9 @@ is_placeholder = not elevenlabs_key or elevenlabs_key.startswith("your_") or len
 if not is_placeholder:
     try:
         from integrations.elevenlabs_client import generate_audio
-        log.info(f"ElevenLabs TTS → niche={NICHE}")
+        log.info(f"ElevenLabs TTS -> niche={NICHE}")
         generate_audio(script_text=script, niche=NICHE, output_path=audio_path)
-        log.info(f"audio.mp3  → {audio_path.stat().st_size // 1024} KB  (ElevenLabs)")
+        log.info(f"audio.mp3  -> {audio_path.stat().st_size // 1024} KB  (ElevenLabs)")
         log.info("Layer 2 done. Next: python scripts/dev_stage3_subtitles.py")
         sys.exit(0)
     except Exception as exc:
@@ -113,5 +113,5 @@ else:
         combined += AudioSegment.from_mp3(io.BytesIO(seg))
     combined.export(str(audio_path), format="mp3")
 
-log.info(f"audio.mp3  → {audio_path.stat().st_size // 1024} KB  (Google TTS)")
+log.info(f"audio.mp3  -> {audio_path.stat().st_size // 1024} KB  (Google TTS)")
 log.info("Layer 2 done. Next: python scripts/dev_stage3_subtitles.py")

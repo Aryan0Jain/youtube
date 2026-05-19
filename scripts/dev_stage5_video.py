@@ -43,17 +43,17 @@ DEV_WS   = BASE_DIR / "dev" / "workspace"
 # ── Validate inputs ───────────────────────────────────────────────────────────
 audio_path = DEV_WS / "audio.mp3"
 if not audio_path.exists():
-    log.error("dev/workspace/audio.mp3 not found — run dev_stage2_tts.py first")
+    log.error("dev/workspace/audio.mp3 not found -- run dev_stage2_tts.py first")
     sys.exit(1)
 
 clip_paths = sorted((DEV_WS / "clips").glob("*.mp4"))
 if not clip_paths:
-    log.error("No clips in dev/workspace/clips/ — run dev_stage4_clips.py first")
+    log.error("No clips in dev/workspace/clips/ -- run dev_stage4_clips.py first")
     sys.exit(1)
 
 subtitle_path = DEV_WS / "subtitles.srt"
 if not subtitle_path.exists():
-    log.warning("No subtitles.srt found — video will be produced without captions")
+    log.warning("No subtitles.srt found -- video will be produced without captions")
     subtitle_path = None
 
 log.info(f"Audio   : {audio_path.name}  ({audio_path.stat().st_size // 1024} KB)")
@@ -85,7 +85,7 @@ if niche_metadata_path.exists():
     except Exception as e:
         log.warning(f"Could not load niche_metadata.json: {e}")
 else:
-    log.info("No niche_metadata.json found — overlays will be skipped")
+    log.info("No niche_metadata.json found -- overlays will be skipped")
 
 script_text = ""
 script_path = DEV_WS / "script.txt"

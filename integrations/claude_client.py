@@ -57,7 +57,7 @@ def write_script(topic: str, style_notes: str, niche: str,
     )
     user = "\n\n".join(user_parts)
 
-    log.info(f"Generating {niche} script (<=​{word_cap}w) for: {topic!r}")
+    log.info(f"Generating {niche} script (<={word_cap}w) for: {topic!r}")
     response = _get_client().messages.create(
         model=model,
         max_tokens=max_tokens,

@@ -34,7 +34,7 @@ DEV_WS   = BASE_DIR / "dev" / "workspace"
 
 script_path = DEV_WS / "script.txt"
 if not script_path.exists():
-    log.error("dev/workspace/script.txt not found — run dev_stage1_script.py first")
+    log.error("dev/workspace/script.txt not found -- run dev_stage1_script.py first")
     sys.exit(1)
 
 clips_dir = DEV_WS / "clips"
@@ -67,7 +67,7 @@ if audio_path.exists():
         log.warning(f"Could not probe audio: {e}. Estimating from word count.")
         audio_duration = len(script.split()) / 130.0 * 60.0
 else:
-    log.warning("No audio.mp3 found — estimating duration from word count")
+    log.warning("No audio.mp3 found -- estimating duration from word count")
     audio_duration = len(script.split()) / 130.0 * 60.0
 
 # ── Per-segment keyword extraction (one keyword per 30s) ─────────────────────
@@ -101,5 +101,5 @@ for kw in segment_keywords:
     log.info(f"  '{kw}': {len(new_clips)} clips  (total: {len(all_clips)})")
 
 log.info(f"Downloaded {len(all_clips)} clips ({len(seen_ids)} unique Pexels IDs)")
-log.info(f"Clips stored in dev/workspace/clips/ ({len(segment_keywords)} keywords × {profile.clips_per_segment} clips/keyword)")
+log.info(f"Clips stored in dev/workspace/clips/ ({len(segment_keywords)} keywords x {profile.clips_per_segment} clips/keyword)")
 log.info("Layer 4 done. Next: python scripts/dev_stage5_video.py")
