@@ -1,5 +1,5 @@
 """
-VideoAssembler — Stage 5 of the pipeline.
+VideoAssembler -- Stage 5 of the pipeline.
 
 Five-phase FFmpeg pipeline:
   1. Pre-process each clip: Ken Burns motion + niche colour grade
@@ -27,7 +27,7 @@ from pipeline.base import PipelineStage, JobContext
 
 log = logging.getLogger(__name__)
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
+# -- Paths ---------------------------------------------------------------------
 MUSIC_DIR = Path(__file__).parent.parent / "music"
 
 # Default xfade duration (used if niche profile is unavailable)
@@ -44,7 +44,7 @@ _DEFAULT_SUBTITLE_STYLE = (
 )
 
 
-# ── FFmpeg helpers ─────────────────────────────────────────────────────────────
+# -- FFmpeg helpers -------------------------------------------------------------
 
 def _run_ffmpeg(args: list[str], label: str = "ffmpeg") -> None:
     cmd = ["ffmpeg", "-y"] + args
@@ -63,7 +63,7 @@ def _probe_duration(path: Path) -> float:
     return float(data["format"]["duration"])
 
 
-# ── Niche settings helpers ─────────────────────────────────────────────────────
+# -- Niche settings helpers -----------------------------------------------------
 
 def _get_niche_profile(niche: str):
     """Return NicheProfile or None -- never raises."""
@@ -75,7 +75,7 @@ def _get_niche_profile(niche: str):
         return None
 
 
-# ── Ken Burns ─────────────────────────────────────────────────────────────────
+# -- Ken Burns -----------------------------------------------------------------
 
 def _kenburns_filter(clip_idx: int, w: int, h: int, duration_secs: float) -> str:
     """
@@ -112,7 +112,7 @@ def _kenburns_filter(clip_idx: int, w: int, h: int, duration_secs: float) -> str
     return f"{scale},{center_crop},{crop},setsar=1"
 
 
-# ── Phase 1: Pre-process clips ────────────────────────────────────────────────
+# -- Phase 1: Pre-process clips ------------------------------------------------
 
 def _preprocess_clip(src: Path, out: Path, clip_idx: int, duration: float,
                      niche: str, spec) -> None:
@@ -136,7 +136,7 @@ def _preprocess_clip(src: Path, out: Path, clip_idx: int, duration: float,
     ], label=f"preprocess_{clip_idx:03d}")
 
 
-# ── Phase 2: Xfade concatenation ──────────────────────────────────────────────
+# -- Phase 2: Xfade concatenation ----------------------------------------------
 
 def _xfade_concat(clip_files: list[Path], clip_durations: list[float],
                   niche: str, output: Path) -> float:
@@ -186,7 +186,7 @@ def _xfade_concat(clip_files: list[Path], clip_durations: list[float],
     return total_dur
 
 
-# ── Phase 3: Audio mixing ──────────────────────────────────────────────────────
+# -- Phase 3: Audio mixing ------------------------------------------------------
 
 def _mix_audio(raw_video: Path, vo_audio: Path, music_path: Path | None,
                music_volume: float, max_dur: float, output: Path) -> None:
@@ -226,7 +226,7 @@ def _mix_audio(raw_video: Path, vo_audio: Path, music_path: Path | None,
     ], label="mix_sidechain")
 
 
-# ── Phase 3.5: Niche overlays ─────────────────────────────────────────────────
+# -- Phase 3.5: Niche overlays -------------------------------------------------
 
 def _word_idx_to_ts(word_idx: int, total_words: int, audio_duration: float) -> float:
     """Convert a word index to an approximate video timestamp."""
@@ -594,7 +594,7 @@ def _overlay_quiz(video_in: Path, items: list, total_words: int,
     return True
 
 
-# ── LUFS normalization ─────────────────────────────────────────────────────────
+# -- LUFS normalization ---------------------------------------------------------
 
 def _normalize_lufs(video_in: Path, output: Path,
                     target_lufs: float = -14.0,
@@ -649,19 +649,49 @@ def _normalize_lufs(video_in: Path, output: Path,
     ], label="lufs_normalize")
 
 
-# ── Music file lookup ──────────────────────────────────────────────────────────
+# -- Music file lookup (local cache + GCS fallback) ----------------------------
 
 def _get_music_file(niche: str, music_enabled: bool) -> Path | None:
+    """
+    Resolve the music file for a niche.
+
+    Resolution order:
+      1. Local music/ directory (instant)
+      2. GCS gs://<bucket>/music/<filename> (downloaded and cached locally)
+      3. None (log warning, video proceeds without music)
+    """
     if not music_enabled:
         return None
     profile = _get_niche_profile(niche)
     if not profile or not profile.music_file:
         return None
-    path = MUSIC_DIR / profile.music_file
-    return path if path.exists() else None
+
+    local_path = MUSIC_DIR / profile.music_file
+
+    # 1. Local cache hit
+    if local_path.exists():
+        return local_path
+
+    # 2. GCS download -> local cache
+    log.info(f"Music '{profile.music_file}' not found locally -- trying GCS...")
+    MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        from integrations.gcs_client import download_file
+        gcs_path = f"music/{profile.music_file}"
+        if download_file(gcs_path, local_path):
+            return local_path
+    except Exception as exc:
+        log.warning(f"GCS music download failed: {exc}")
+
+    # 3. Give up -- proceed without music
+    log.warning(
+        f"Music file '{profile.music_file}' not found locally or in GCS. "
+        "Upload with: python scripts/upload_music.py"
+    )
+    return None
 
 
-# ── Main assembly ──────────────────────────────────────────────────────────────
+# -- Main assembly --------------------------------------------------------------
 
 def assemble_video(
     clip_paths: list[Path],
@@ -692,7 +722,7 @@ def assemble_video(
         f"clip_range={clip_sec_min:.1f}-{clip_sec_max:.1f}s  niche={niche}"
     )
 
-    # ── Phase 1: Pre-process clips ──────────────────────────────────────────
+    # -- Phase 1: Pre-process clips ------------------------------------------
     proc_clips: list[Path] = []
     proc_durs: list[float] = []
     accumulated = 0.0
@@ -731,12 +761,12 @@ def assemble_video(
 
     log.info(f"Phase 1 complete -- {len(proc_clips)} clips, {accumulated:.1f}s")
 
-    # ── Phase 2: Xfade concatenation ────────────────────────────────────────
+    # -- Phase 2: Xfade concatenation ----------------------------------------
     raw_video = workspace / "raw_video.mp4"
     video_dur = _xfade_concat(proc_clips, proc_durs, niche, raw_video)
     log.info(f"Phase 2 complete -- {raw_video.name}  ({video_dur:.1f}s)")
 
-    # ── Phase 3: Audio mixing ────────────────────────────────────────────────
+    # -- Phase 3: Audio mixing ------------------------------------------------
     audio_mixed = workspace / "video_with_audio.mp4"
     music_file = _get_music_file(niche, spec.music_enabled)
     if music_file:
@@ -746,7 +776,7 @@ def assemble_video(
     _mix_audio(raw_video, audio_path, music_file, music_volume, target_dur, audio_mixed)
     log.info(f"Phase 3 complete -- {audio_mixed.name}")
 
-    # ── Phase 3.5: Niche overlays ────────────────────────────────────────────
+    # -- Phase 3.5: Niche overlays --------------------------------------------
     overlaid_video = workspace / "video_overlaid.mp4"
     overlay_applied = False
 
@@ -766,7 +796,7 @@ def assemble_video(
     else:
         log.info("Phase 3.5: no overlays")
 
-    # ── Phase 4: Subtitle burning ────────────────────────────────────────────
+    # -- Phase 4: Subtitle burning --------------------------------------------
     subtitled_video = workspace / "video_subtitled.mp4"
 
     if subtitle_path and subtitle_path.exists():
@@ -778,7 +808,7 @@ def assemble_video(
         log.info("Phase 4: no subtitles -- skipping burn")
         pre_lufs_video = pre_subtitle_video
 
-    # ── LUFS normalization ───────────────────────────────────────────────────
+    # -- LUFS normalization ---------------------------------------------------
     final_video = workspace / "final_video.mp4"
     log.info("LUFS: normalizing audio to -14 LUFS (YouTube standard)")
     try:
@@ -793,7 +823,7 @@ def assemble_video(
     return final_video
 
 
-# ── Phase 4: Subtitle burning ──────────────────────────────────────────────────
+# -- Phase 4: Subtitle burning --------------------------------------------------
 
 def _srt_ffmpeg_path(srt_path: Path) -> str:
     """
@@ -822,7 +852,7 @@ def _burn_subtitles(video_in: Path, srt_path: Path, niche: str, output: Path) ->
     ], label="burn_subtitles")
 
 
-# ── PipelineStage wrapper ──────────────────────────────────────────────────────
+# -- PipelineStage wrapper ------------------------------------------------------
 
 class VideoAssembler(PipelineStage):
     name = "video_assembler"
