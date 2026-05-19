@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ channel_id }} — YT Automation</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #0f0f0f; color: #e0e0e0; padding: 24px; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; color: #fff; }
+    .back { color: #4af; font-size: 0.85rem; margin-bottom: 20px; display: block; }
+    h2 { font-size: 1rem; margin: 24px 0 10px; color: #ccc; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th { text-align: left; padding: 8px 12px; font-size: 0.75rem; color: #666;
+         border-bottom: 1px solid #222; text-transform: uppercase; }
+    td { padding: 10px 12px; border-bottom: 1px solid #1a1a1a; font-size: 0.85rem; }
+    tr:hover td { background: #1a1a1a; }
+    a { color: #4af; text-decoration: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px;
+             font-size: 0.75rem; font-weight: 600; }
+    .completed { background: #1a3a1a; color: #4f4; }
+    .failed    { background: #3a1a1a; color: #f44; }
+    .queued    { background: #1a2a3a; color: #48f; }
+    .running   { background: #2a2a1a; color: #ff4; }
+  </style>
+</head>
+<body>
+  <a class="back" href="/">← All Channels</a>
+  <h1>{{ channel_id }}</h1>
+
+  <h2>Recent Jobs</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Series</th><th>Topic</th><th>Format</th><th>Status</th><th>Checkpoint</th><th>Scheduled</th></tr>
+    </thead>
+    <tbody>
+      {% for j in jobs %}
+      <tr>
+        <td><a href="/job/{{ j.id }}">#{{ j.id }}</a></td>
+        <td>{{ j.series_id }}</td>
+        <td>{{ (j.topic or '')[:50] }}</td>
+        <td>{{ j.format }}</td>
+        <td><span class="badge {{ j.status }}">{{ j.status }}</span></td>
+        <td>{{ j.checkpoint or '—' }}</td>
+        <td>{{ (j.scheduled_for or '')[:16] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="color:#555;text-align:center;padding:24px">No jobs yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Recent Uploads</h2>
+  <table>
+    <thead>
+      <tr><th>Title</th><th>Published</th><th>Link</th></tr>
+    </thead>
+    <tbody>
+      {% for u in uploads %}
+      <tr>
+        <td>{{ (u.title or '—')[:70] }}</td>
+        <td>{{ (u.published_at or '—')[:16] }}</td>
+        <td>{% if u.url %}<a href="{{ u.url }}" target="_blank">▶ Watch</a>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" style="color:#555;text-align:center;padding:24px">No uploads yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

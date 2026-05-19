@@ -1,0 +1,40 @@
+# ── Secrets & credentials ──────────────────────────────────────────────────────
+.env
+config/credentials/
+*.pem
+*.p12
+
+# ── Dev workspace (large video/audio files, ephemeral) ───────────────────────
+dev/
+
+# ── Runtime artifacts ─────────────────────────────────────────────────────────
+logs/
+workspace/
+data/
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# ── Large media (synced from GCS separately) ──────────────────────────────────
+music/*.mp3
+assets/*.ttf
+fonts/*.ttf
+fonts/*.otf
+
+# ── Job database ──────────────────────────────────────────────────────────────
+data/jobs.db
+
+# ── IDE / editor ──────────────────────────────────────────────────────────────
+.claude/
+.idea/
+.vscode/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

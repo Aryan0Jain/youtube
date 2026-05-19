@@ -1,0 +1,63 @@
+channel_id: horror_stories
+display_name: "Dark Tales"
+youtube_channel_id: UCxxxxxxxxxxxxxxxxxxxxxxx
+oauth_token_path: config/credentials/horror_stories_oauth.json
+
+overrides:
+  tts_voice: en-US-Neural2-C
+  upload_privacy: public
+
+series:
+  - series_id: real_horror_shorts
+    display_name: "Real Horror Shorts"
+    playlist_id:
+    format: shorts
+    niche: horror
+    style_notes: >
+      Spine-chilling true stories told in second-person. Build dread gradually.
+      Sentences are short and punchy. End with a twist or haunting final image.
+      Tone: dead serious, no humor whatsoever. Use specific details and dates
+      to create authenticity. Maximum tension, minimum words.
+
+    schedule:
+      days_of_week: [monday, wednesday, friday]
+      time_utc: "14:00"
+
+    topic_source:
+      type: google_sheet
+      sheet_id: REPLACE_WITH_YOUR_SHEET_ID
+      tab_name: horror_shorts_topics
+      topic_column: A
+      used_column: B
+
+    overrides:
+      tts_speaking_rate: 0.92
+
+  - series_id: horror_explained
+    display_name: "Horror Explained"
+    format: full_length
+    niche: horror
+    style_notes: >
+      Deep-dive educational explanations of real horror events, true crime,
+      or unsolved mysteries. Three-act structure: establish the setting and
+      people involved, escalate the horror with verified facts, resolve with
+      the known truth and lasting implications. Tone: authoritative, measured,
+      occasionally sardonic. 8–10 minutes.
+
+    schedule:
+      days_of_week: [sunday]
+      time_utc: "15:00"
+
+    topic_source:
+      type: claude_autogen
+      autogen_prompt: >
+        Generate a compelling YouTube video topic about a real-world horror event,
+        unsolved mystery, or disturbing true crime case that happened in the last
+        100 years. The topic should be specific enough to be researchable but broad
+        enough for an 8-minute video. Return only the topic title, nothing else.
+      avoid_recent_topics: true
+
+    overrides:
+      tts_voice: en-US-Neural2-J
+      music_volume: 0.05
+      clip_search_count: 35

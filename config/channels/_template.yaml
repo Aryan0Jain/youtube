@@ -1,0 +1,52 @@
+# Channel configuration template. Copy to channels/{channel_id}.yaml and fill in.
+# channel_id must match the filename base (without .yaml)
+
+channel_id: my_channel
+display_name: "My Channel Name"
+youtube_channel_id: UCxxxxxxxxxxxxxxxxxxxxxxx
+oauth_token_path: config/credentials/my_channel_oauth.json
+
+# Optional: override any master.yaml defaults at the channel level
+overrides:
+  tts_voice: en-US-Neural2-D
+  upload_privacy: private
+
+series:
+  - series_id: my_first_series
+    display_name: "My First Series"
+    playlist_id:                         # optional YouTube playlist ID (PLxxxx...)
+    format: full_length                  # "full_length" | "shorts"
+    niche: what_if                       # horror | what_if | comparison | quiz | shock_facts | ranking | myth_busting | custom
+    style_notes: >
+      Describe the tone, persona, and structure expected from the script.
+      This is injected directly into the Claude system prompt.
+      Be specific: pacing, vocabulary level, use of humor, emotional arc.
+
+    schedule:
+      days_of_week: [monday, thursday]   # any subset of weekday names
+      time_utc: "14:00"                  # 24h HH:MM in UTC
+
+    topic_source:
+      type: google_sheet                 # "google_sheet" | "claude_autogen"
+
+      # --- google_sheet options ---
+      sheet_id: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms
+      tab_name: my_topics
+      topic_column: A                    # column letter containing topic titles
+      used_column: B                     # column letter to mark TRUE after use
+
+      # --- claude_autogen options ---
+      # autogen_prompt: >
+      #   Generate a compelling YouTube video topic about X.
+      #   Return only the topic title, nothing else.
+      # avoid_recent_topics: true        # skip topics used in last 90 days
+
+    # Optional: series-level overrides (highest priority, wins over channel + master)
+    overrides:
+      tts_speaking_rate: 1.0
+
+  # Add more series below:
+  # - series_id: my_shorts_series
+  #   format: shorts
+  #   niche: shock_facts
+  #   ...

@@ -1,0 +1,30 @@
+defaults:
+  tts_voice: en-US-Neural2-D
+  tts_speaking_rate: 1.0
+  music_volume: 0.08
+  clip_search_count: 20
+  upload_privacy: private
+  max_retries: 3
+  retry_backoff_seconds: 300
+  subtitles_enabled: false
+
+infrastructure:
+  gcs_bucket: yt-automation-assets
+  service_account_path: config/credentials/service_account.json
+  workspace_dir: workspace
+  log_dir: logs
+  db_path: data/jobs.db
+
+dashboard:
+  enabled: true
+  port: 8080
+  host: "127.0.0.1"
+
+claude:
+  model: claude-opus-4-5
+  haiku_model: claude-haiku-4-5-20251001
+  max_tokens: 4096
+
+pexels:
+  api_key_env: PEXELS_API_KEY
+  rate_limit_buffer: 5

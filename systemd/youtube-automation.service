@@ -1,0 +1,32 @@
+[Unit]
+Description=YouTube Automation Pipeline
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/youtube-automation
+EnvironmentFile=/home/ubuntu/youtube-automation/.env
+
+# gunicorn: 1 worker (single-threaded pipeline), 60-min timeout for long encodes
+ExecStart=/home/ubuntu/youtube-automation/.venv/bin/gunicorn \
+    --workers 1 \
+    --timeout 3600 \
+    --bind 127.0.0.1:8080 \
+    --log-level info \
+    --access-logfile logs/access.log \
+    --error-logfile logs/gunicorn_error.log \
+    'scripts.run_scheduler:create_app()'
+
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:/home/ubuntu/youtube-automation/logs/system.log
+StandardError=append:/home/ubuntu/youtube-automation/logs/system.log
+
+# Allow the process to write to its working directory
+ReadWritePaths=/home/ubuntu/youtube-automation
+
+[Install]
+WantedBy=multi-user.target

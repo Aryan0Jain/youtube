@@ -1,0 +1,306 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# config/niches.yaml — Single source of truth for all niche-specific settings.
+#
+# Adding a new niche:  add one block under `niches:` with all required fields.
+# Removing a niche:    delete its block (and update any channel YAMLs that
+#                      reference it).
+# No pipeline code changes are needed in either case.
+# ─────────────────────────────────────────────────────────────────────────────
+
+niches:
+
+  horror:
+    display_name: "Horror Stories"
+
+    # ── Script ────────────────────────────────────────────────────────────────
+    target_word_count: 1100
+    script_system_prompt: |
+      You are a professional YouTube horror scriptwriter.
+
+      STRUCTURE (mandatory):
+      1. COLD OPEN (first 30 words): start with the most inexplicable, disturbing
+         moment — the detail that has no explanation. Do NOT start with background
+         context. Hook with the mystery, not the story.
+      2. CONTEXT: now explain who, where, when — briefly.
+      3. ESCALATION: build dread every 90 seconds with a new inexplicable detail.
+      4. THE DETAIL: reveal the one piece of evidence that defies all rational
+         explanations. Use "..." to signal a beat of silence.
+      5. OPEN ENDING: close without resolution. Leave the viewer unsettled.
+
+      STYLE RULES:
+      - Sentences: 8–14 words. Mix short punchy sentences with longer atmospheric ones.
+      - Use second-person "you" to pull viewers in ("Imagine you are standing there...").
+      - No passive voice. No academic language. No "it is believed that...".
+      - Include at least 3 "..." pause markers at key revelations.
+      - Hard limit: stay under the word count target.
+
+    # ── Voice (ElevenLabs) ────────────────────────────────────────────────────
+    elevenlabs_voice_id: "pNInz6obpgDQGcFmaJgB"   # Adam — deep, authoritative
+    elevenlabs_stability: 0.35
+    elevenlabs_style: 0.15
+    elevenlabs_similarity_boost: 0.80
+    speaking_rate: 0.88    # slow and measured — silence carries the dread
+
+    # ── Clips ─────────────────────────────────────────────────────────────────
+    clip_duration_min: 3.0
+    clip_duration_max: 5.0
+    clips_per_segment: 6   # × number of 30s segments = total unique clips
+    xfade_transition: "fade"
+    xfade_duration: 0.40
+
+    # ── Visuals ───────────────────────────────────────────────────────────────
+    color_filter: "hue=s=0.20,curves=all='0/0 0.5/0.35 1/0.85',vignette=PI/4"
+    subtitle_style: "Fontsize=54,PrimaryColour=&H00FFFFFF,OutlineColour=&H000000FF,Outline=4,Shadow=2,Alignment=2,MarginV=65,Bold=1"
+
+    # ── Overlay ───────────────────────────────────────────────────────────────
+    # Options: none | entity_cards | fact_counter | quiz | ranking_card |
+    #          myth_stamp | scale_text | side_labels
+    overlay_type: "entity_cards"
+
+    # ── Music ─────────────────────────────────────────────────────────────────
+    music_file: "dark_ambient.mp3"
+
+
+  what_if:
+    display_name: "What If"
+
+    target_word_count: 1200
+    script_system_prompt: |
+      You are a professional YouTube "What If" scriptwriter.
+
+      STRUCTURE (mandatory):
+      1. PREMISE (first 20 words): state the What If scenario immediately.
+         "What if [X] happened tomorrow?" — no preamble.
+      2. IMMEDIATE (first 24 hours): visceral, personal consequences.
+      3. SHORT-TERM (days to weeks): societal ripple effects.
+      4. LONG-TERM (months to years): civilisation-scale changes.
+      5. TWIST: one consequence nobody sees coming — surprising and counterintuitive.
+      6. SCALE CLOSE: zoom out to the biggest possible implication.
+
+      STYLE RULES:
+      - Sentences: 10–14 words. Build urgency with each paragraph.
+      - Use "What if..." and "Within hours..." as natural pace markers.
+      - Each scale jump should feel like a bigger reveal than the last.
+      - Hard limit: stay under the word count target.
+
+    elevenlabs_voice_id: "VR6AewLTigWG4xSOukaG"   # Arnold — rich, engaging
+    elevenlabs_stability: 0.55
+    elevenlabs_style: 0.30
+    elevenlabs_similarity_boost: 0.75
+    speaking_rate: 1.05
+
+    clip_duration_min: 5.0
+    clip_duration_max: 8.0
+    clips_per_segment: 5
+    xfade_transition: "smoothleft"
+    xfade_duration: 0.60
+
+    color_filter: null
+    subtitle_style: "Fontsize=52,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=3,Shadow=1,Alignment=2,MarginV=65,Bold=1"
+    overlay_type: "scale_text"
+    music_file: "cinematic_orchestral.mp3"
+
+
+  shock_facts:
+    display_name: "Shock Facts"
+
+    target_word_count: 900
+    script_system_prompt: |
+      You are a professional YouTube "Top 10 Shocking Facts" scriptwriter.
+
+      STRUCTURE (mandatory):
+      1. TEASE: hint at Fact #1 in the opening — make it sound unbelievable.
+         "You will not believe what number one is."
+      2. COUNT DOWN: facts 10 → 1. For each fact:
+         - Hook sentence (6–8 words, makes the viewer lean in)
+         - Two supporting sentences (the evidence / context)
+         - Kicker (the most mind-blowing implication)
+      3. MIDPOINT HOOK (between facts 6 and 5): "And that's not even the worst part..."
+      4. PAYOFF: Fact #1 must live up to the tease. It's the most shocking.
+      5. CTA: brief subscribe CTA.
+
+      STYLE RULES:
+      - Sentences: 6–10 words. Fast and punchy. No long complex sentences.
+      - Every fact starts with a number callout: "Number ten..."
+      - Hard limit: stay under the word count target.
+
+    elevenlabs_voice_id: "pNInz6obpgDQGcFmaJgB"   # Adam — punchy delivery
+    elevenlabs_stability: 0.28
+    elevenlabs_style: 0.45
+    elevenlabs_similarity_boost: 0.85
+    speaking_rate: 1.18   # fast and energetic
+
+    clip_duration_min: 2.0
+    clip_duration_max: 4.0
+    clips_per_segment: 8
+    xfade_transition: "wipeleft"
+    xfade_duration: 0.25
+
+    color_filter: "eq=saturation=1.3:contrast=1.1"
+    subtitle_style: "Fontsize=56,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,Outline=3,Shadow=1,Alignment=2,MarginV=65,Bold=1"
+    overlay_type: "fact_counter"
+    music_file: "high_energy_electronic.mp3"
+
+
+  quiz:
+    display_name: "Quiz"
+
+    target_word_count: 1000
+    script_system_prompt: |
+      You are a professional YouTube quiz scriptwriter.
+
+      STRUCTURE (mandatory):
+      1. STAKES INTRO: tell viewers their score will surprise them. Make it a challenge.
+      2. 10 QUESTIONS: for each question:
+         - Ask the question clearly
+         - Say exactly: "Pause the video now if you want to guess."
+         - Give one hint
+         - Reveal the answer with enthusiasm
+         - Add one fascinating bonus fact about the answer
+      3. SCORE GUIDE: 8–10 correct = genius, 5–7 = impressive, under 5 = share this video.
+      4. CTA: subscribe for the next quiz.
+
+      STYLE RULES:
+      - Friendly, encouraging, never condescending.
+      - Sentences: 8–12 words. Clear and conversational.
+      - The bonus fact after each answer should be genuinely surprising.
+      - Hard limit: stay under the word count target.
+
+    elevenlabs_voice_id: "EXAVITQu4vr4xnSDxMaL"   # Sarah — friendly, upbeat
+    elevenlabs_stability: 0.55
+    elevenlabs_style: 0.35
+    elevenlabs_similarity_boost: 0.75
+    speaking_rate: 0.95
+
+    clip_duration_min: 4.0
+    clip_duration_max: 7.0
+    clips_per_segment: 5
+    xfade_transition: "fade"
+    xfade_duration: 0.50
+
+    color_filter: null
+    subtitle_style: "Fontsize=50,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,Outline=2,Shadow=1,Alignment=2,MarginV=65,Bold=1"
+    overlay_type: "quiz"
+    music_file: "playful_upbeat.mp3"
+
+
+  ranking:
+    display_name: "Ranking"
+
+    target_word_count: 1100
+    script_system_prompt: |
+      You are a professional YouTube ranking/countdown scriptwriter.
+
+      STRUCTURE (mandatory):
+      1. TEASE #1: open by hinting at the #1 entry. Make it sound unbelievable.
+      2. CRITERIA: briefly state what the ranking is based on (1–2 sentences).
+      3. COUNT DOWN: entries 10 → 1. Each entry:
+         - Name and rank callout
+         - Two to three sentences of compelling detail
+         - One surprising fact that earns it this rank
+      4. MIDPOINT: at #5, say "But the top 5 are on a completely different level."
+      5. #1 REVEAL: dramatic, earned — "And the number one..." pause with "..."
+      6. CLOSE: one-sentence reflection on what the list reveals.
+
+      STYLE RULES:
+      - Energy builds throughout — sentences become shorter and more emphatic near #1.
+      - Use "..." before the #1 reveal for dramatic pause.
+      - Hard limit: stay under the word count target.
+
+    elevenlabs_voice_id: "VR6AewLTigWG4xSOukaG"   # Arnold — energetic
+    elevenlabs_stability: 0.38
+    elevenlabs_style: 0.35
+    elevenlabs_similarity_boost: 0.80
+    speaking_rate: 1.08
+
+    clip_duration_min: 4.0
+    clip_duration_max: 6.0
+    clips_per_segment: 6
+    xfade_transition: "slidedown"
+    xfade_duration: 0.50
+
+    color_filter: null
+    subtitle_style: "Fontsize=52,PrimaryColour=&H0028C5FF,OutlineColour=&H00000000,Outline=3,Shadow=2,Alignment=2,MarginV=65,Bold=1"
+    overlay_type: "ranking_card"
+    music_file: "epic_buildup.mp3"
+
+
+  comparison:
+    display_name: "Comparison"
+
+    target_word_count: 1100
+    script_system_prompt: |
+      You are a professional YouTube comparison scriptwriter.
+
+      STRUCTURE (mandatory):
+      1. WHY IT MATTERS: open with why this comparison affects the viewer personally.
+      2. FOUR CATEGORIES: compare across exactly 4 dimensions. Alternate which side
+         wins each round (A wins, B wins, A wins, tie — or similar).
+      3. UNEXPECTED EDGE: reveal one dimension nobody usually considers — the
+         counterintuitive edge that surprises even experts.
+      4. CLEAR VERDICT: give a definitive winner with one sentence of justification.
+
+      STYLE RULES:
+      - Balanced, measured, analytical tone — never fanboy for either side.
+      - Use category headers naturally in narration: "On cost...", "On performance..."
+      - Sentences: 12–15 words. Authoritative and clear.
+      - Hard limit: stay under the word count target.
+
+    elevenlabs_voice_id: "TxGEqnHWrfWFTfGW9XjX"   # Josh — clear, confident
+    elevenlabs_stability: 0.68
+    elevenlabs_style: 0.10
+    elevenlabs_similarity_boost: 0.80
+    speaking_rate: 0.98
+
+    clip_duration_min: 5.0
+    clip_duration_max: 8.0
+    clips_per_segment: 5
+    xfade_transition: "fade"
+    xfade_duration: 0.55
+
+    color_filter: null
+    subtitle_style: "Fontsize=52,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=3,Shadow=1,Alignment=2,MarginV=65,Bold=1"
+    overlay_type: "side_labels"
+    music_file: "neutral_corporate.mp3"
+
+
+  myth_busting:
+    display_name: "Myth Busting"
+
+    target_word_count: 1100
+    script_system_prompt: |
+      You are a professional YouTube myth-busting scriptwriter.
+
+      STRUCTURE (mandatory):
+      1. STATE THE MYTH CHARITABLY: present it as reasonable people believe it.
+         Explain why the myth is convincing — don't mock believers.
+      2. FIRST CRACK: introduce the first reason for doubt. Something small.
+      3. EVIDENCE: present the actual scientific/historical evidence.
+      4. PIVOT LINE: use the exact phrase "The truth is..." exactly once.
+         This is the structural pivot of the entire video.
+      5. REAL EXPLANATION: the accurate version, clearly explained.
+      6. PSYCHOLOGY: end with why this myth spread — what it reveals about
+         how humans process information.
+
+      STYLE RULES:
+      - Tone shift across the video: starts sympathetic, ends authoritative.
+      - Never condescending. Treat believers as intelligent people who were misled.
+      - Sentences: 12–15 words. Clear and evidence-based.
+      - Hard limit: stay under the word count target.
+
+    elevenlabs_voice_id: "TxGEqnHWrfWFTfGW9XjX"   # Josh — measured, analytical
+    elevenlabs_stability: 0.52
+    elevenlabs_style: 0.20
+    elevenlabs_similarity_boost: 0.80
+    speaking_rate: 1.00
+
+    clip_duration_min: 4.0
+    clip_duration_max: 6.0
+    clips_per_segment: 6
+    xfade_transition: "fade"
+    xfade_duration: 0.50
+
+    color_filter: null
+    subtitle_style: "Fontsize=52,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=3,Shadow=1,Alignment=2,MarginV=65,Bold=1"
+    overlay_type: "myth_stamp"
+    music_file: "investigative_jazz.mp3"
