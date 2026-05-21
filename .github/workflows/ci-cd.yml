@@ -1,0 +1,67 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  # ── CI: runs on every push and PR ──────────────────────────────────────────
+  ci:
+    name: Sanity checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install system ffmpeg
+        run: sudo apt-get install -y ffmpeg --quiet
+
+      - name: Run CI checks
+        run: python scripts/ci_check.py
+
+  # ── CD: auto-deploy to GCP VM on master push ───────────────────────────────
+  deploy:
+    name: Deploy to GCP VM
+    needs: ci
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/youtube-automation
+
+            # Pull latest code
+            git pull origin master
+
+            # Reload service (no venv changes needed unless requirements changed)
+            sudo systemctl restart youtube-automation
+
+            # Wait for startup
+            sleep 5
+
+            # Health check
+            curl -sf http://127.0.0.1:8080/api/status | python3 -c "
+            import sys, json
+            d = json.load(sys.stdin)
+            print('  queued:', d['queued_jobs'], '  running:', d['running_jobs'])
+            print('Deploy OK')
+            "
