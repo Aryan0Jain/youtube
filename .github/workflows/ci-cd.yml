@@ -52,11 +52,14 @@ jobs:
             # Pull latest code
             git pull origin master
 
-            # Reload service (no venv changes needed unless requirements changed)
-            sudo systemctl restart youtube-automation
+            # Clean stop: kill service, then ensure port 8080 is free before restarting
+            sudo systemctl stop youtube-automation || true
+            sudo fuser -k 8080/tcp 2>/dev/null || true
+            sleep 2
 
-            # Wait for startup
-            sleep 5
+            # Start fresh
+            sudo systemctl start youtube-automation
+            sleep 6
 
             # Health check
             curl -sf http://127.0.0.1:8080/api/status | python3 -c "
