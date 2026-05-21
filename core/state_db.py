@@ -205,6 +205,19 @@ class StateDB:
             ).fetchone()
             return row is not None
 
+    def get_old_used_topics(self, channel_id: str, series_id: str,
+                            older_than_days: int = 180) -> list[str]:
+        """Return topics used MORE than older_than_days ago — candidates for a refresh video."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT topic FROM used_topics
+                   WHERE channel_id=? AND series_id=? AND used_at <= ?
+                   ORDER BY used_at ASC""",
+                (channel_id, series_id, cutoff),
+            ).fetchall()
+            return [r["topic"] for r in rows]
+
     def get_recent_used_topics(self, channel_id: str, series_id: str,
                                days: int = 90) -> list[str]:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()

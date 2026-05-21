@@ -1,0 +1,37 @@
+channel_id: ranking_top10
+display_name: "Top 10 Everything"
+youtube_channel_id: REPLACE_WITH_UC_ID     # ← paste your UC... channel ID here
+oauth_token_path: config/credentials/ranking_top10_oauth.json
+
+overrides:
+  upload_privacy: private                  # Telegram review flow handles publishing
+
+series:
+  - series_id: top10_rankings
+    display_name: "Top 10 Rankings"
+    format: full_length
+    niche: ranking
+    style_notes: >
+      Energetic countdown from #10 to #1. Each rank gets ~45-60 seconds: state the
+      rank clearly, deliver one punchy fact or statistic, add human context or a
+      relatable comparison for scale. Build suspense toward #1 — tease it at #2.
+      Use rhetorical questions to hook the viewer after each item ("But wait — the
+      #5 slot will surprise you..."). Conversational, confident tone. No filler.
+
+    schedule:
+      days_of_week: [monday, wednesday, friday]
+      time_utc: "14:00"
+
+    topic_source:
+      type: claude_autogen
+      avoid_recent_topics: true
+      allow_topic_refresh: true
+      refresh_after_days: 180
+      autogen_prompt: >
+        Generate a compelling YouTube "Top 10" ranking video topic.
+        Good topics are visual, dramatic, and specific — avoid vague titles.
+        Use formats like: "Top 10 Richest People in 2026",
+        "10 Most Dangerous Jobs in the World",
+        "Top 10 Fastest Animals Ever Recorded",
+        "The 10 Deadliest Natural Disasters in History".
+        Return only the video title, nothing else.

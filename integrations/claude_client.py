@@ -113,20 +113,38 @@ def write_script(topic: str, style_notes: str, niche: str,
 # ── Topic generation ──────────────────────────────────────────────────────────
 
 def generate_topic(autogen_prompt: str, avoid_list: list[str],
-                   haiku_model: str, max_tokens: int = 256) -> str:
-    """Generate a new topic title. avoid_list is injected as context."""
+                   haiku_model: str, max_tokens: int = 256,
+                   refreshable_topics: list[str] | None = None,
+                   refresh_after_days: int = 180) -> str:
+    """
+    Generate a new topic title.
+
+    avoid_list        — recently used topics that must NOT be repeated.
+    refreshable_topics — old topics (> refresh_after_days) that MAY be revisited
+                         with updated data; Claude adds a year marker if it picks one.
+    """
     avoid_section = ""
     if avoid_list:
         recent = "\n".join(f"- {t}" for t in avoid_list[:40])
         avoid_section = f"\n\nDo NOT generate any of these recently used topics:\n{recent}"
 
+    refresh_section = ""
+    if refreshable_topics:
+        old = "\n".join(f"- {t}" for t in refreshable_topics[:20])
+        refresh_section = (
+            f"\n\nThese topics were covered over {refresh_after_days} days ago. "
+            f"Rankings and records change — you MAY revisit one of these if current data "
+            f"would make for a significantly better/updated video. "
+            f"If you do, add a year marker to distinguish it (e.g. '2026 Edition' or "
+            f"'Updated: ...'):\n{old}"
+        )
+
+    prompt = autogen_prompt.strip() + avoid_section + refresh_section
+
     response = _get_client().messages.create(
         model=haiku_model,
         max_tokens=max_tokens,
-        messages=[{
-            "role": "user",
-            "content": autogen_prompt.strip() + avoid_section,
-        }],
+        messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text.strip()
 

@@ -94,9 +94,18 @@ def _claim_topic(channel: ChannelConfig, series: SeriesConfig) -> str | None:
                 channel.channel_id, series.series_id, days=90
             )
 
+        refreshable_topics: list[str] = []
+        if ts.allow_topic_refresh:
+            refreshable_topics = _db.get_old_used_topics(
+                channel.channel_id, series.series_id,
+                older_than_days=ts.refresh_after_days,
+            )
+
         topic = claude_client.generate_topic(
             autogen_prompt=ts.autogen_prompt or "",
             avoid_list=avoid_list,
+            refreshable_topics=refreshable_topics,
+            refresh_after_days=ts.refresh_after_days,
             haiku_model=haiku_model,
         )
         return topic

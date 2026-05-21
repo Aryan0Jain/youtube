@@ -23,6 +23,8 @@ class TopicSourceConfig:
     used_column: str | None = None
     autogen_prompt: str | None = None
     avoid_recent_topics: bool = False
+    allow_topic_refresh: bool = False      # allow revisiting old topics with updated data
+    refresh_after_days: int = 180          # how old a topic must be to qualify for refresh
     # trend_autogen fields
     opportunity_threshold: int = 5
     timeframe: str = "now 7-d"
@@ -104,6 +106,8 @@ def _load_topic_source(raw: dict, source_file: str, ctx: str) -> TopicSourceConf
             type=ts_type,
             autogen_prompt=_require(raw, "autogen_prompt", source_file, ctx),
             avoid_recent_topics=raw.get("avoid_recent_topics", False),
+            allow_topic_refresh=raw.get("allow_topic_refresh", False),
+            refresh_after_days=int(raw.get("refresh_after_days", 180)),
         )
 
     # trend_autogen
