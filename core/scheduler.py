@@ -101,6 +101,55 @@ def _claim_topic(channel: ChannelConfig, series: SeriesConfig) -> str | None:
         )
         return topic
 
+    elif ts.type == "trend_autogen":
+        use_mock = os.environ.get("USE_MOCK_CLAUDE") == "1"
+        if use_mock:
+            return f"Trend topic: {series.niche} #{datetime.now(timezone.utc).microsecond}"
+
+        avoid_list: list[str] = []
+        if ts.avoid_recent_topics:
+            avoid_list = _db.get_recent_used_topics(
+                channel.channel_id, series.series_id, days=90
+            )
+
+        try:
+            from integrations.trend_discovery import find_best_topics
+            candidates = find_best_topics(
+                niche=series.niche,
+                haiku_model=haiku_model,
+                count=10,
+                opportunity_threshold=ts.opportunity_threshold,
+                timeframe=ts.timeframe,
+            )
+            avoid_lower = {t.lower() for t in avoid_list}
+            for candidate in candidates:
+                title = candidate.get("topic", "")
+                if title and title.lower() not in avoid_lower:
+                    log.info(
+                        f"Trend topic selected: {title!r} "
+                        f"(opportunity={candidate.get('opportunity_score', '?')}, "
+                        f"niche_fit={candidate.get('niche_fit', '?')})"
+                    )
+                    return title
+            log.warning(
+                f"All {len(candidates)} trend candidates were recently used "
+                f"-- falling back to autogen"
+            )
+        except Exception as exc:
+            log.warning(f"Trend discovery failed ({exc}) -- falling back to autogen")
+
+        # Fallback: use Claude autogen with the fallback prompt
+        fallback_prompt = (
+            ts.fallback_autogen_prompt
+            or f"Generate a compelling YouTube video topic for the {series.niche} niche. "
+               f"Return only the topic title, nothing else."
+        )
+        return claude_client.generate_topic(
+            autogen_prompt=fallback_prompt,
+            avoid_list=avoid_list,
+            haiku_model=haiku_model,
+        )
+
     log.error(f"Unknown topic_source type: {ts.type}")
     return None
 

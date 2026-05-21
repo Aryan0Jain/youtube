@@ -28,3 +28,9 @@ claude:
 pexels:
   api_key_env: PEXELS_API_KEY
   rate_limit_buffer: 5
+
+# Telegram review notifications — set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+# env vars to activate.  If either is absent the notifier silently skips.
+telegram:
+  bot_token_env: TELEGRAM_BOT_TOKEN
+  chat_id_env: TELEGRAM_CHAT_ID

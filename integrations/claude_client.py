@@ -25,6 +25,10 @@ def write_script(topic: str, style_notes: str, niche: str,
     Generate a YouTube script using the niche-specific system prompt from
     config/niches.yaml (loaded via pipeline.niche_config).
 
+    If the first draft is under 90% of the target word count, a single
+    expansion pass is made automatically — Claude is asked to lengthen
+    the shortest sections until the script hits the target range.
+
     Falls back to a generic system prompt if the niche is not found.
     Returns the raw script text only.
     """
@@ -42,29 +46,68 @@ def write_script(topic: str, style_notes: str, niche: str,
         )
         word_cap = target_word_count
 
+    word_min = int(word_cap * 0.91)   # 91% floor (~1000 for a 1100-word target)
+
     # Merge in any series-level style notes and format instructions
-    user_parts = [
-        f'Write a YouTube script about: "{topic}"',
-    ]
+    user_parts = [f'Write a YouTube script about: "{topic}"']
     if style_notes and style_notes.strip():
         user_parts.append(f"Additional style guidance: {style_notes.strip()}")
     if script_prompt_suffix and script_prompt_suffix.strip():
         user_parts.append(script_prompt_suffix.strip())
     user_parts.append(
-        f"Hard limit: {word_cap} words maximum. "
+        f"Required word count: {word_min}–{word_cap} words. "
         "Return ONLY the script text. No stage directions, no headers, "
         "no timestamps, no meta-commentary."
     )
     user = "\n\n".join(user_parts)
 
-    log.info(f"Generating {niche} script (<={word_cap}w) for: {topic!r}")
+    log.info(f"Generating {niche} script ({word_min}–{word_cap}w) for: {topic!r}")
     response = _get_client().messages.create(
         model=model,
         max_tokens=max_tokens,
         system=system,
         messages=[{"role": "user", "content": user}],
     )
-    return response.content[0].text.strip()
+    script = response.content[0].text.strip()
+    word_count = len(script.split())
+    log.info(f"  Draft: {word_count} words (target {word_min}–{word_cap})")
+
+    # -- Expansion loop: retry up to 3 times until word_min is reached ----------
+    for pass_num in range(1, 4):
+        if word_count >= word_min:
+            break
+        deficit = word_min - word_count
+        log.info(
+            f"  Script is {deficit} words short — expansion pass {pass_num}/3 "
+            f"(add ~{deficit} more words)"
+        )
+        expand_user = (
+            f"This script is {word_count} words. It needs to reach at least {word_min} words "
+            f"(about {deficit} more words). Expand it by:\n"
+            "1. Adding one extra detail or consequence sentence to the entries that are shortest.\n"
+            "2. Strengthening any tease lines that feel thin.\n"
+            "Do NOT add new ranked entries. Do NOT change the structure or tone.\n"
+            "Return the complete expanded script only — no commentary.\n\n"
+            f"CURRENT SCRIPT:\n{script}"
+        )
+        expand_response = _get_client().messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": expand_user}],
+        )
+        expanded = expand_response.content[0].text.strip()
+        new_count = len(expanded.split())
+        log.info(f"  After expansion pass {pass_num}: {new_count} words")
+        # Only accept expansion if it actually made it longer (sanity check)
+        if new_count > word_count:
+            script = expanded
+            word_count = new_count
+        else:
+            log.warning(f"  Expansion pass {pass_num} did not increase length — stopping")
+            break
+
+    return script
 
 
 # ── Topic generation ──────────────────────────────────────────────────────────
@@ -201,6 +244,63 @@ def extract_segment_keywords(script_text: str, segment_duration_sec: float,
     return keywords[:num_segments]
 
 
+def extract_ranking_clip_keywords(rank_items: list[dict], script_text: str,
+                                   haiku_model: str) -> list[str]:
+    """
+    For the ranking niche: extract one Pexels search keyword per rank entry.
+    Uses the rank name and surrounding script context to produce visually
+    specific, emotionally resonant search phrases.
+
+    Args:
+        rank_items: list of {"rank": N, "name": "...", "word_idx": N} from niche_metadata
+        script_text: full script text (for context)
+        haiku_model: Claude Haiku model identifier
+
+    Returns:
+        list of keyword strings, one per rank item (same order as rank_items).
+        Falls back to generic terms on any failure.
+    """
+    if not rank_items:
+        return []
+
+    rank_lines = "\n".join(
+        f"#{item.get('rank', '?')}: {item.get('name', 'unknown')}"
+        for item in rank_items
+    )
+    n = len(rank_items)
+
+    prompt = (
+        f"A YouTube ranking video has {n} entries. For each entry below, return ONE "
+        f"3-5 word Pexels stock video search phrase.\n\n"
+        f"Rules:\n"
+        f"- Focus on dramatic, visual, emotionally resonant footage (scale, impact, aftermath)\n"
+        f"- NOT the literal name: instead of '1887 Yellow River Flood' use 'river flooding "
+        f"swallowed villages'\n"
+        f"- NOT generic: instead of 'earthquake' use 'earthquake rubble collapse chaos'\n"
+        f"- Each phrase must be visually DISTINCT from the others\n"
+        f"- Return exactly {n} lines, one phrase per line, no numbering, no extra text\n\n"
+        f"Ranking entries:\n{rank_lines}\n\n"
+        f"Script excerpt (for context):\n{script_text[:2000]}"
+    )
+
+    try:
+        response = _get_client().messages.create(
+            model=haiku_model,
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        lines = [ln.strip(" -•*0123456789.)") for ln in
+                 response.content[0].text.strip().splitlines()]
+        keywords = [ln for ln in lines if ln]
+        # Pad if needed
+        while len(keywords) < n:
+            keywords.append(keywords[-1] if keywords else "natural disaster aftermath")
+        return keywords[:n]
+    except Exception as exc:
+        log.warning(f"extract_ranking_clip_keywords failed ({exc}), using fallback keywords")
+        return [f"{item.get('name', 'disaster')} aftermath" for item in rank_items]
+
+
 # ── Niche metadata extraction (for time-gated overlays) ──────────────────────
 
 # Per-overlay-type extraction prompts
@@ -233,10 +333,13 @@ _OVERLAY_PROMPTS: dict[str, str] = {
     "ranking_card": (
         "This script is a ranking countdown. Extract each ranked entry. "
         "Return a JSON array with keys: "
-        '"rank" (integer), "name" (the entry name, max 30 chars), '
+        '"rank" (integer), '
+        '"name" (entry name, max 28 chars), '
+        '"year" (string, when it occurred, e.g. "1815" or "1931-32", max 9 chars — use empty string if unknown), '
+        '"scale" (string, death toll or key impact in max 22 chars, e.g. "~71,000 dead" or "500k km² lost" — use empty string if none), '
         '"word_idx" (approximate word index where this rank is introduced, starting from 0). '
         "Return ONLY valid JSON array, nothing else. Example: "
-        '[{"rank": 10, "name": "Amazon River", "word_idx": 85}]'
+        '[{"rank":10,"name":"Shaanxi Earthquake","year":"1556","scale":"~830,000 dead","word_idx":85}]'
     ),
     "myth_stamp": (
         "This script busts a myth. Extract: the myth statement and the verdict. "
@@ -320,25 +423,135 @@ def extract_niche_metadata(script_text: str, niche: str,
         return {}
 
 
+# ── Emotional keyword extraction ──────────────────────────────────────────────
+
+def extract_emotional_keywords(script_text: str, haiku_model: str,
+                                max_words: int = 12) -> list[str]:
+    """
+    Ask Claude Haiku to identify the most emotionally impactful words in the
+    script for bold-emphasis in subtitles. Returns a list of lowercase single
+    words (no numbers, no phrases).
+
+    Cost: ~$0.001/call. Falls back to [] on any error so the pipeline
+    never blocks on this non-critical step.
+    """
+    prompt = (
+        f"Read this YouTube script and return the {max_words} single words that carry "
+        "the most emotional weight — words that represent death, destruction, scale, "
+        "or shock. These words will be bold-emphasized in subtitles.\n"
+        "Rules: only lowercase single words (no phrases, no numbers), no duplicates, "
+        "return as a JSON array of strings only.\n"
+        "Example output: [\"collapsed\",\"drowned\",\"never\",\"deadliest\",\"erased\"]\n\n"
+        f"SCRIPT:\n{script_text[:3000]}"
+    )
+    try:
+        response = _get_client().messages.create(
+            model=haiku_model,
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        result = json.loads(raw)
+        if isinstance(result, list):
+            # Sanitise: lowercase strings only, no numbers
+            return [str(w).lower() for w in result if str(w).isalpha()]
+        return []
+    except Exception as exc:
+        log.warning(f"extract_emotional_keywords failed: {exc}")
+        return []
+
+
 # ── Video metadata (SEO title/description/tags) ───────────────────────────────
+
+_NICHE_TITLE_FORMULAS = {
+    "ranking":            'Use a "Top 10 [X] That [Strong Verb]" format. End with "#1 Will Shock You" or "You Won\'t Believe #1". Numbers beat words ("10" not "ten"). One or two POWER WORDS in caps allowed.',
+    "horror":             'Use "The [Disturbing/Terrifying/Dark] [Secret/Mystery/Truth] of [Subject]" or "What REALLY Happened to [Person/Place]".',
+    "shock_facts":        'Use "[N] [Topic] Facts That [Emotional Hook]" or "[N] Things About [Topic] That Will [Reaction]".',
+    "quiz":               'Use "[Topic] Quiz — Can YOU Score 100%? 🎯" or "Only [X]% of People Can Pass This [Topic] Quiz".',
+    "historical_versus":  'Use "[A] vs [B]: Who [Actually/Really] [Verb]?" or "The REAL Difference Between [A] and [B]".',
+    "myth_busting":       'Use "The [Topic] Myth That [Millions/Everyone] Believed" or "Was [Famous Claim] Actually TRUE?".',
+    "what_if":            'Use "What If [Scenario]? The [Shocking/Terrifying] Answer" or "What Would Happen If [Scenario]?".',
+}
+
+_NICHE_HASHTAGS = {
+    "ranking":           "#Top10 #Rankings #History",
+    "horror":            "#TrueStory #Mystery #Horror",
+    "shock_facts":       "#ShockingFacts #DidYouKnow #MindBlown",
+    "quiz":              "#Quiz #Challenge #Trivia",
+    "historical_versus": "#History #VsDebate #Historical",
+    "myth_busting":      "#MythBusted #Facts #TrueOrFalse",
+    "what_if":           "#WhatIf #Science #ThoughtExperiment",
+}
+
+_NICHE_CONTENT_TYPE_TAGS = {
+    "ranking":           "top 10 list, countdown video, ranking video",
+    "horror":            "true crime documentary, mystery explained, unsolved mysteries",
+    "shock_facts":       "amazing facts, fun facts, educational video",
+    "quiz":              "quiz video, trivia challenge, knowledge test",
+    "historical_versus": "history comparison, versus video, historical debate",
+    "myth_busting":      "myth busted, fact check, debunked",
+    "what_if":           "what if scenario, hypothetical, thought experiment",
+}
+
 
 def generate_video_metadata(topic: str, niche: str, script_text: str,
                              haiku_model: str) -> dict:
-    """Generate SEO title, description, and tags from script content."""
-    prompt = (
-        f"Given this YouTube video about '{topic}' in the {niche} niche, generate:\n"
-        "1. SEO-optimized title (max 70 chars, no clickbait, no ALL CAPS)\n"
-        "2. Description (150-300 words, natural keyword embedding, ends with CTA)\n"
-        "3. 10 tags (comma-separated, mix of broad and specific)\n\n"
-        f"Script excerpt (first 1000 chars):\n{script_text[:1000]}\n\n"
-        "Return in this exact format:\n"
-        "TITLE: <title>\n"
-        "DESCRIPTION: <description>\n"
-        "TAGS: <tag1>, <tag2>, ..., <tag10>"
+    """
+    Generate SEO-optimised title, description, and tags from script content.
+
+    Title:       ≤70 chars, niche-specific formula, 1-2 capitalised POWER WORDS
+    Description: 400-500 words, structured with hook + bullets + CTA + hashtags
+    Tags:        15-20 tags mixing exact-match, broad category, long-tail, and
+                 content-type keywords
+    """
+    title_guidance = _NICHE_TITLE_FORMULAS.get(
+        niche,
+        "Write a compelling title (≤70 chars) that creates curiosity or urgency."
     )
+    hashtags = _NICHE_HASHTAGS.get(niche, "#YouTube #Education #Interesting")
+    content_type_tags = _NICHE_CONTENT_TYPE_TAGS.get(niche, "educational video, youtube video")
+
+    prompt = (
+        f"You are an expert YouTube SEO specialist. Write metadata for a video:\n"
+        f"Topic: {topic}\n"
+        f"Niche: {niche}\n\n"
+        f"Script excerpt:\n{script_text[:1500]}\n\n"
+        "---\n\n"
+        "TITLE RULES:\n"
+        f"- {title_guidance}\n"
+        "- Maximum 70 characters\n"
+        "- Sentence case with 1-2 POWER WORDS capitalised for emphasis\n"
+        "- Use numbers where possible (digits, not words)\n"
+        "- No trailing punctuation\n\n"
+        "DESCRIPTION RULES (write 400-500 words total):\n"
+        "- Line 1 (≤125 chars): the single most shocking/compelling thing in the video. "
+        "This is the hook visible before 'Show more'.\n"
+        "- Line 2: blank line\n"
+        "- 2-sentence summary with the primary keyword used naturally\n"
+        "- Blank line\n"
+        "- '📌 IN THIS VIDEO:' header followed by 4-5 bullet points starting with •\n"
+        "- Blank line\n"
+        "- 1-2 paragraphs of context (natural keyword embedding, no stuffing)\n"
+        "- Blank line\n"
+        "- '👉 SUBSCRIBE for more [relevant keyword] every week'\n"
+        "- '🔔 Ring the bell so you never miss a video'\n"
+        "- Blank line\n"
+        f"- End with exactly these hashtags on the last line: {hashtags}\n\n"
+        "TAGS RULES (return exactly 18 comma-separated tags, no #):\n"
+        "- 4 exact-match tags (keywords from the title, verbatim)\n"
+        "- 4 broad category tags (e.g. 'history', 'natural disasters', 'science')\n"
+        "- 4 long-tail tags (4-6 word phrases people actually search)\n"
+        f"- 4 content-type tags: {content_type_tags}, plus 2 variations\n"
+        "- 2 channel brand tags: 'facts you didn't know', 'most shocking moments'\n\n"
+        "Return in EXACTLY this format (no extra text before or after):\n"
+        "TITLE: <title>\n"
+        "DESCRIPTION: <full description>\n"
+        "TAGS: <tag1>, <tag2>, ..., <tag18>"
+    )
+
     response = _get_client().messages.create(
         model=haiku_model,
-        max_tokens=600,
+        max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = response.content[0].text.strip()
@@ -349,7 +562,7 @@ def generate_video_metadata(topic: str, niche: str, script_text: str,
 
     for line in raw.splitlines():
         if line.startswith("TITLE:"):
-            result["title"] = line[6:].strip()
+            result["title"] = line[6:].strip()[:100]  # hard cap for YouTube API
             in_desc = False
         elif line.startswith("DESCRIPTION:"):
             in_desc = True
@@ -363,4 +576,10 @@ def generate_video_metadata(topic: str, niche: str, script_text: str,
             desc_lines.append(line)
 
     result["description"] = "\n".join(desc_lines).strip()
+
+    # Fallback: ensure we always have some tags even if parsing failed
+    if not result["tags"]:
+        result["tags"] = [topic, niche, "top 10", "facts", "history",
+                          "educational", "documentary"]
+
     return result

@@ -127,95 +127,34 @@ def stage1_script(ws: Path, niche: str, topic: str,
         count = len(items) if isinstance(items, list) else (1 if items else 0)
         log.info(f"[{niche}] niche_metadata.json -> overlay={niche_metadata.get('overlay_type')}, {count} items")
 
-    return script
+    # Extract emotional keywords for bold subtitle emphasis
+    log.info(f"[{niche}] Extracting emotional keywords for subtitle emphasis...")
+    emotional_keywords = claude_client.extract_emotional_keywords(
+        script_text=script, haiku_model=haiku_model
+    )
+    if emotional_keywords:
+        (ws / "emotional_keywords.json").write_text(
+            json.dumps(emotional_keywords, ensure_ascii=False), encoding="utf-8"
+        )
+        log.info(f"[{niche}] emotional_keywords.json -> {emotional_keywords}")
+
+    return script, emotional_keywords
 
 
 def stage2_tts(ws: Path, niche: str, script: str, profile, spec) -> Path:
-    from google.cloud import texttospeech
-    from pydub import AudioSegment
+    from pipeline.tts_generator import generate_audio_gemini, _get_gemini_voice
 
     audio_path = ws / "audio.mp3"
-    # Use niche-aware Studio/Journey voices (significantly better than Neural2)
-    from pipeline.tts_generator import _get_google_voice, _apply_ssml_markup, _split_ssml
-    voice_name = _get_google_voice(niche)
+    voice_name = _get_gemini_voice(niche)
     speaking_rate = profile.speaking_rate * spec.speaking_rate_multiplier
 
-    log.info(f"[{niche}] Stage 2: Google TTS voice={voice_name} rate={speaking_rate:.2f}")
-
-    # Split into chunks (plain text fallback)
-    def _split(text, max_bytes=4800):
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        chunks_out, current = [], ""
-        for s in sentences:
-            candidate = (current + " " + s).strip()
-            if len(candidate.encode("utf-8")) > max_bytes:
-                if current:
-                    chunks_out.append(current)
-                current = s
-            else:
-                current = candidate
-        if current:
-            chunks_out.append(current)
-        return chunks_out or [text[:max_bytes]]
-
-    client = texttospeech.TextToSpeechClient()
-    segments: list[bytes] = []
-
-    # Use SSML for horror/ranking to add dramatic pauses and prosody
-    ssml_body = _apply_ssml_markup(script, niche)
-    if ssml_body:
-        ssml_chunks = _split_ssml(ssml_body, max_chars=4500)
-        log.info(f"[{niche}]   SSML mode: {len(ssml_chunks)} chunk(s)")
-        for i, ssml_chunk in enumerate(ssml_chunks):
-            try:
-                resp = client.synthesize_speech(
-                    input=texttospeech.SynthesisInput(ssml=ssml_chunk),
-                    voice=texttospeech.VoiceSelectionParams(
-                        language_code="en-US", name=voice_name),
-                    audio_config=texttospeech.AudioConfig(
-                        audio_encoding=texttospeech.AudioEncoding.MP3,
-                        speaking_rate=speaking_rate, pitch=0.0),
-                )
-                segments.append(resp.audio_content)
-                log.info(f"[{niche}]   ssml chunk {i+1}/{len(ssml_chunks)}: {len(resp.audio_content)//1024} KB")
-            except Exception as exc:
-                log.warning(f"[{niche}]   SSML chunk {i+1} failed ({exc}), using plain text")
-                plain = _split(script)[min(i, len(_split(script)) - 1)]
-                resp = client.synthesize_speech(
-                    input=texttospeech.SynthesisInput(text=plain),
-                    voice=texttospeech.VoiceSelectionParams(
-                        language_code="en-US", name=voice_name),
-                    audio_config=texttospeech.AudioConfig(
-                        audio_encoding=texttospeech.AudioEncoding.MP3,
-                        speaking_rate=speaking_rate, pitch=0.0),
-                )
-                segments.append(resp.audio_content)
-    else:
-        chunks = _split(script)
-        log.info(f"[{niche}]   plain-text mode: {len(chunks)} chunk(s)")
-        for i, chunk in enumerate(chunks):
-            resp = client.synthesize_speech(
-                input=texttospeech.SynthesisInput(text=chunk),
-                voice=texttospeech.VoiceSelectionParams(
-                    language_code="-".join(voice_name.split("-")[:2]),
-                    name=voice_name,
-                ),
-                audio_config=texttospeech.AudioConfig(
-                    audio_encoding=texttospeech.AudioEncoding.MP3,
-                    speaking_rate=speaking_rate,
-                    pitch=0.0,
-                ),
-            )
-            segments.append(resp.audio_content)
-            log.info(f"[{niche}]   TTS chunk {i+1}/{len(chunks)}: {len(resp.audio_content)//1024} KB")
-
-    if len(segments) == 1:
-        audio_path.write_bytes(segments[0])
-    else:
-        combined = AudioSegment.empty()
-        for seg in segments:
-            combined += AudioSegment.from_mp3(io.BytesIO(seg))
-        combined.export(str(audio_path), format="mp3")
+    log.info(f"[{niche}] Stage 2: Gemini TTS voice={voice_name} rate={speaking_rate:.2f}")
+    generate_audio_gemini(
+        script_text=script,
+        niche=niche,
+        output_path=audio_path,
+        speaking_rate=speaking_rate,
+    )
 
     dur = probe_duration(audio_path)
     log.info(f"[{niche}] audio.mp3 -> {audio_path.stat().st_size//1024} KB, {dur:.1f}s")
@@ -279,21 +218,40 @@ def stage4_clips(ws: Path, niche: str, script: str, audio_path: Path,
     clips_dir = ws / "clips"
     clips_dir.mkdir(exist_ok=True)
 
-    audio_dur = probe_duration(audio_path)
-    # For 90s test video, we only need clips for that duration
-    effective_dur = min(audio_dur, TEST_VIDEO_MAX_SEC * 1.5)  # slight overshoot
-    seg_dur = 30.0
-    num_segments = max(2, round(effective_dur / seg_dur))
+    # For ranking niche, use per-rank keywords from niche_metadata for visual variety
+    nm_path = ws / "niche_metadata.json"
+    rank_items = []
+    if niche == "ranking" and nm_path.exists():
+        try:
+            niche_metadata = json.loads(nm_path.read_text())
+            rank_items = niche_metadata.get("items", [])
+        except Exception:
+            pass
 
-    log.info(f"[{niche}] Stage 4: Extracting {num_segments} segment keywords for {effective_dur:.0f}s ...")
-    keywords = claude_client.extract_segment_keywords(
-        script_text=script,
-        segment_duration_sec=seg_dur,
-        audio_duration_sec=effective_dur,
-        haiku_model=haiku_model,
-        niche=niche,
-    )
-    log.info(f"[{niche}] Keywords: {keywords}")
+    if rank_items:
+        log.info(f"[{niche}] Stage 4: Extracting per-rank keywords ({len(rank_items)} rank entries) ...")
+        keywords = claude_client.extract_ranking_clip_keywords(
+            rank_items=rank_items,
+            script_text=script,
+            haiku_model=haiku_model,
+        )
+        log.info(f"[{niche}] Per-rank keywords ({len(keywords)}): {keywords}")
+    else:
+        audio_dur = probe_duration(audio_path)
+        # For 90s test video, we only need clips for that duration
+        effective_dur = min(audio_dur, TEST_VIDEO_MAX_SEC * 1.5)  # slight overshoot
+        seg_dur = 30.0
+        num_segments = max(2, round(effective_dur / seg_dur))
+
+        log.info(f"[{niche}] Stage 4: Extracting {num_segments} segment keywords for {effective_dur:.0f}s ...")
+        keywords = claude_client.extract_segment_keywords(
+            script_text=script,
+            segment_duration_sec=seg_dur,
+            audio_duration_sec=effective_dur,
+            haiku_model=haiku_model,
+            niche=niche,
+        )
+        log.info(f"[{niche}] Keywords: {keywords}")
 
     seen_ids: set = set()
     all_clips: list[Path] = []
@@ -319,7 +277,8 @@ def stage4_clips(ws: Path, niche: str, script: str, audio_path: Path,
 
 def stage5_video(ws: Path, niche: str, clip_paths: list[Path],
                  audio_path: Path, srt_path: Path, spec, profile,
-                 script: str, niche_metadata: dict) -> Path:
+                 script: str, niche_metadata: dict,
+                 emotional_keywords: list[str] | None = None) -> Path:
     from pipeline.video_assembler import assemble_video
     from formats.base import FormatSpec
     import dataclasses
@@ -338,6 +297,7 @@ def stage5_video(ws: Path, niche: str, clip_paths: list[Path],
         workspace=ws,
         niche_metadata=niche_metadata,
         script_text=script,
+        emotional_keywords=emotional_keywords or [],
     )
     size_mb = result.stat().st_size / 1024 / 1024
     log.info(f"[{niche}] final_video.mp4 -> {size_mb:.1f} MB")
@@ -375,9 +335,10 @@ def run_niche(niche: str, topic: str):
     section(f"NICHE: {niche.upper()} -- {topic}")
 
     # Stage 1: Script
+    emotional_keywords: list[str] = []
     try:
         t = time.time()
-        script = stage1_script(ws, niche, topic, profile, spec, model, haiku_model, max_tokens)
+        script, emotional_keywords = stage1_script(ws, niche, topic, profile, spec, model, haiku_model, max_tokens)
         result["stages"]["script"] = {
             "words": len(script.split()),
             "time_s": round(time.time() - t, 1),
@@ -442,7 +403,7 @@ def run_niche(niche: str, topic: str):
         t = time.time()
         video_path = stage5_video(
             ws, niche, clip_paths, audio_path, srt_path, spec, profile,
-            script, niche_metadata
+            script, niche_metadata, emotional_keywords
         )
         result["stages"]["video"] = {
             "size_mb": round(video_path.stat().st_size / 1024 / 1024, 1),
@@ -530,4 +491,17 @@ def main():
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run full pipeline test for one or all niches")
+    parser.add_argument("--niche", "-n", help="Run only this niche (e.g. ranking, horror)")
+    args = parser.parse_args()
+
+    if args.niche:
+        if args.niche not in NICHE_TOPICS:
+            print(f"Unknown niche '{args.niche}'. Valid: {list(NICHE_TOPICS.keys())}")
+            sys.exit(1)
+        topic = NICHE_TOPICS[args.niche]
+        NICHE_TOPICS.clear()
+        NICHE_TOPICS[args.niche] = topic
+
     main()

@@ -47,9 +47,23 @@ CREATE TABLE IF NOT EXISTS uploads (
     url              TEXT
 );
 
+CREATE TABLE IF NOT EXISTS pending_reviews (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id              INTEGER REFERENCES jobs(id),
+    channel_id          TEXT NOT NULL,
+    youtube_video_id    TEXT NOT NULL UNIQUE,
+    telegram_message_id INTEGER,
+    title               TEXT,
+    url                 TEXT,
+    status              TEXT NOT NULL DEFAULT 'pending',
+    notified_at         TEXT NOT NULL,
+    reviewed_at         TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_channel ON jobs(channel_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_scheduled ON jobs(scheduled_for);
+CREATE INDEX IF NOT EXISTS idx_reviews_status ON pending_reviews(status);
 """
 
 
@@ -60,11 +74,28 @@ def _now_utc() -> str:
 class StateDB:
     def __init__(self, db_path: str | Path):
         self.db_path = str(db_path)
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        # :memory: databases must reuse a single connection — each new
+        # sqlite3.connect(':memory:') call creates a completely separate,
+        # empty database, so tables created in _init_schema() would vanish.
+        self._persistent_conn: sqlite3.Connection | None = None
+        if self.db_path == ':memory:':
+            self._persistent_conn = sqlite3.connect(':memory:', check_same_thread=False)
+            self._persistent_conn.row_factory = sqlite3.Row
+        else:
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
     @contextmanager
     def _conn(self):
+        if self._persistent_conn is not None:
+            # In-memory DB: reuse the single persistent connection
+            try:
+                yield self._persistent_conn
+                self._persistent_conn.commit()
+            except Exception:
+                self._persistent_conn.rollback()
+                raise
+            return
         conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         try:
@@ -245,6 +276,53 @@ class StateDB:
                 f"SELECT * FROM uploads {where} ORDER BY published_at DESC LIMIT ?", params
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ── Telegram review queue ──────────────────────────────────────────────────
+
+    def add_pending_review(self, job_id: int, channel_id: str,
+                           youtube_video_id: str, telegram_message_id: int | None,
+                           title: str, url: str):
+        """Record a newly uploaded video awaiting Telegram review."""
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT OR IGNORE INTO pending_reviews
+                   (job_id, channel_id, youtube_video_id, telegram_message_id,
+                    title, url, status, notified_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)""",
+                (job_id, channel_id, youtube_video_id, telegram_message_id,
+                 title, url, _now_utc()),
+            )
+
+    def get_pending_review(self, youtube_video_id: str) -> dict | None:
+        """Return the review row for a given video_id, or None."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM pending_reviews WHERE youtube_video_id = ?",
+                (youtube_video_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def update_review_status(self, youtube_video_id: str,
+                             status: str):  # 'published' | 'rejected'
+        """Mark a review as published or rejected."""
+        with self._conn() as conn:
+            conn.execute(
+                """UPDATE pending_reviews
+                   SET status = ?, reviewed_at = ?
+                   WHERE youtube_video_id = ?""",
+                (status, _now_utc(), youtube_video_id),
+            )
+
+    def get_pending_reviews(self, status: str = "pending") -> list[dict]:
+        """Return all reviews with the given status (default: pending)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM pending_reviews WHERE status = ? ORDER BY notified_at DESC",
+                (status,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ── Orphan recovery ────────────────────────────────────────────────────────
 
     def reset_orphaned_running_jobs(self):
         """Reset any jobs stuck in 'running' from a previous crash back to queued."""

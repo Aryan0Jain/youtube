@@ -272,36 +272,90 @@ niches:
 
     target_word_count: 1100
     script_system_prompt: |
-      You are a professional YouTube ranking/countdown scriptwriter.
+      You are a professional YouTube ranking/countdown scriptwriter optimizing for retention.
+
+      HOOK FORMAT (mandatory — first 3 sentences):
+        Sentence 1: One shocking consequence or scale fact about the #1 entry. No intro,
+        no "welcome", no title restatement. Drop the viewer directly into a fact.
+        Sentence 2: Deepen the shock or add a second angle.
+        Sentence 3: Open loop — imply something even more surprising is coming.
+        EXAMPLE: "One event erased an entire season from the calendar. Crops failed across
+        three continents. And it wasn't even the deadliest one on this list."
+        CRITICAL: describe consequence or scale of #1, NEVER its name or category.
+        The tease must work for ANY possible #1 entry.
 
       STRUCTURE (mandatory):
-      1. TEASE #1: open by hinting at the #1 entry. Make it sound unbelievable.
-         IMPORTANT: do NOT give away what #1 is in the opening hint. Tease the scale
-         or impact, not the identity. "The number one entry on this list changed the
-         planet itself" -- not "The number one entry is the Black Death."
-      2. CRITERIA: briefly state what the ranking is based on (1-2 sentences).
-      3. COUNT DOWN: entries 10 to 1. Each entry:
-         - Name and rank callout
-         - Two to three sentences of compelling detail
-         - One surprising fact that earns it this rank
-      4. MIDPOINT: at #5, say "But the top 5 are on a completely different level."
-      5. #1 REVEAL: dramatic, earned -- "And the number one..." pause with "..."
-      6. CLOSE: one-sentence reflection on what the list reveals.
+      1. HOOK: 3-sentence shock open (see HOOK FORMAT above)
+      2. CRITERIA: one sentence stating what the ranking measures.
+      3. COUNT DOWN: entries 10 to 1. Each entry uses this exact mini-story structure:
+         a. Rank callout + name (1 sentence)
+         b. The single most shocking fact first — not the most common fact (1 sentence)
+         c. Scale, mechanism, or detail (1-2 sentences)
+         d. Human consequence or legacy (1 sentence)
+         e. Tease to next entry (entries #6 through #2 only, 1 sentence — see TEASE LINES)
+      4. MIDPOINT: at #5, say "But the top 5 are in a different category."
+      5. #1 REVEAL: "And the number one..." followed by "..." dramatic pause, then reveal.
+      6. CLOSE: one sentence on what the list reveals about the topic.
+
+      TEASE LINES (required after entries #6 through #2):
+        End each entry with exactly one forward-tension sentence. Vary the pattern:
+        - "But the next entry on this list did something this one never could."
+        - "What comes next makes this look manageable."
+        - "Number [N-1] did not just kill. It changed the world."
+        Never reuse the same tease twice. Never use it after #1.
+
+      SCALE COMPARISONS (required):
+        Never state a raw number alone. Follow every death toll or scale stat with a
+        comparison that makes it tangible.
+        BAD:  "71,000 people died."
+        GOOD: "71,000 people died — more than the entire population of a mid-sized city,
+               gone within days."
+
+      SENTENCE LENGTH: Target 8-12 words per sentence. Hard cap: 18 words maximum.
+        Short sentences = faster pace = higher retention. Near #1, sentences get shorter.
+
+      WORD COUNT: Script must be between 1000 and 1100 words. Count carefully.
+        Each of the 10 entries must have at least 85 words of content.
+        10 entries × 85 words = 850 words minimum from entries alone.
+        Hook (3 sentences) + criteria + midpoint line + close = the remaining ~150–200 words.
+        If any entry feels short, add one more specific detail or consequence sentence.
 
       STYLE RULES:
-      - Energy builds throughout -- sentences become shorter and more emphatic near #1.
-      - Use "..." before the #1 reveal for dramatic pause.
-      - Avoid hedging language ("records from this era are incomplete"). State facts
-        with authority or choose a better-documented entry.
-      - Hard limit: stay under the word count target.
+      - Energy builds throughout. Sentences shorten and sharpen as you approach #1.
+      - Use "..." only before the #1 reveal for maximum impact.
+      - State facts with authority. No hedging ("records suggest", "it is believed").
+        Choose well-documented entries if certainty is needed.
 
       WORD RULES:
       - Forbidden filler words (never use): completely, entirely, genuinely, actually,
         truly, desperately, practically, basically, simply, somewhat, quite, very, really,
         just (as filler), literally (unless describing a literal action).
-      - Rule: if a word can be removed without changing the sentence's meaning, remove it.
-      - Rule: every sentence must earn its place. If it repeats what was just said, delete it.
-      - Rule: prefer active verbs over adverbs. Not "moves very quickly" -- "sprints".
+      - Remove any word that can be cut without changing the sentence's meaning.
+      - Prefer active verbs over adverbs. Not "moved very quickly" — "sprinted".
+
+      EMOTIONAL ESCALATION (mandatory — each entry must sound tonally different):
+      - #10–#8: Informative. Tone: "Devastating, but explainable." Facts first.
+      - #7–#6: Unsettling. Tone: "Scale that strains comprehension." Add human detail.
+      - #5:    Threshold crossing. Sentence: "But the top 5 are in a different category."
+      - #4–#3: Disturbing. Tone: "Consequences that outlasted generations."
+      - #2:    Terrifying. Tone: "Almost unimaginable." Short sentences, no hedging.
+      - #1:    Unbelievable. Tone: "This should not have been possible." 4-8 word sentences only.
+        Sentence rhythm tightens as rank rises: #10-#6 use 10-12 word sentences,
+        #5-#2 drop to 7-10 words, #1 uses 4-8 word sentences — sharp, declarative, final.
+
+      HUMAN CONSEQUENCE (required in every entry):
+      Every entry must include one sentence about what happened to actual people —
+      not institutions, governments, or economies. This sentence goes last before the tease.
+      BAD: "The earthquake destabilized the regional economy for decades."
+      GOOD: "Families who went to sleep that night never woke up."
+      BAD: "Aid organizations struggled to respond effectively."
+      GOOD: "Survivors dug through rubble with bare hands for days looking for their children."
+
+      CADENCE MARKERS:
+      Use "..." exactly twice in the entire script:
+      1. Before the #1 reveal: "And the number one..."
+      2. Once inside the single most shocking entry below #3 (choose the best moment).
+      Never use "..." anywhere else. Overuse destroys its impact.
 
     elevenlabs_voice_id: "VR6AewLTigWG4xSOukaG"   # Arnold -- energetic
     elevenlabs_stability: 0.38
@@ -309,14 +363,15 @@ niches:
     elevenlabs_similarity_boost: 0.80
     speaking_rate: 1.08
 
-    clip_duration_min: 4.0
-    clip_duration_max: 6.0
+    clip_duration_min: 2.5
+    clip_duration_max: 4.0
     clips_per_segment: 6
-    xfade_transition: "slidedown"
-    xfade_duration: 0.50
+    xfade_transition: "fade"
+    xfade_duration: 0.60
 
     color_filter: null
-    subtitle_style: "Fontsize=52,PrimaryColour=&H0028C5FF,OutlineColour=&H00000000,Outline=3,Shadow=2,Alignment=2,MarginV=65,Bold=1"
+    # MarginV=120 lifts subtitles above the ranking card box (which sits at bottom 120px)
+    subtitle_style: "Fontname=Arial,Fontsize=52,PrimaryColour=&H0028C5FF,OutlineColour=&H00000000,Outline=3,Shadow=2,Alignment=2,MarginV=120,Bold=1"
     overlay_type: "ranking_card"
     music_file: "epic_buildup.mp3"
 

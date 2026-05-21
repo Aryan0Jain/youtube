@@ -23,29 +23,12 @@ series:
       time_utc: "13:00"
 
     topic_source:
-      type: google_sheet
-      sheet_id: REPLACE_WITH_YOUR_SHEET_ID
-      tab_name: top10_topics
-      topic_column: A
-      used_column: B
-
-  - series_id: space_shorts
-    display_name: "60-Second Space Facts"
-    format: shorts
-    niche: shock_facts
-    style_notes: >
-      One mind-blowing space fact per Short. Hook in first 3 words.
-      State the fact, give one number that makes it tangible, add one
-      "this means..." implication. No intro. No outro. Pure information shock.
-
-    schedule:
-      days_of_week: [monday, wednesday, friday, sunday]
-      time_utc: "12:00"
-
-    topic_source:
-      type: claude_autogen
-      autogen_prompt: >
-        Generate a single mind-blowing space or astronomy fact suitable for a
-        60-second YouTube Short. It must contain at least one specific number or
-        measurement. Return only the fact topic title, nothing else.
+      type: trend_autogen
+      opportunity_threshold: 6
+      timeframe: "now 7-d"
       avoid_recent_topics: true
+      fallback_autogen_prompt: >
+        Generate a compelling YouTube countdown topic for a Top 10 ranking video.
+        Topics should be dramatic, visual, and work well as "Top 10 [X]" or
+        "The [N] Most [Adjective] [Things]" formats. Prefer space, science, and
+        natural world topics. Return only the topic title, nothing else.

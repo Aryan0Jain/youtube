@@ -98,8 +98,11 @@ def _transcribe_to_srt(audio_path: Path, srt_path: Path) -> None:
                 idx += 1
             continue
 
+        # Merge Whisper word fragments ("re" + "-grue" → "regrew") before grouping
+        clean_words = _merge_word_fragments(list(seg.words))
+
         # Punctuation-aware grouping: break at sentence-end and natural pauses
-        for group in _group_words_into_lines(list(seg.words)):
+        for group in _group_words_into_lines(clean_words):
             start = _srt_time(group[0].start)
             end = _srt_time(group[-1].end)
             text = " ".join(w.word.strip() for w in group).strip()
@@ -146,6 +149,54 @@ def _write_estimated_srt(script_text: str, srt_path: Path) -> None:
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _merge_word_fragments(words: list) -> list:
+    """
+    Merge Whisper word boundary artifacts before grouping into subtitle lines.
+
+    Whisper sometimes splits words at morpheme boundaries, producing fragments
+    like ["re", "-grue"] for "regrew" or ["re", "-wrote"] for "rewrote".
+    These appear as broken text on screen: "forests re -grue on abandoned farmland."
+
+    Merge any token that starts with a hyphen into the preceding token,
+    combining their text and extending the end timestamp.
+    Also merges bare single-character fragments that look like split prefixes.
+    """
+    if not words:
+        return words
+
+    class _MergedWord:
+        """Lightweight word-like object for merged fragments."""
+        __slots__ = ("word", "start", "end")
+        def __init__(self, word, start, end):
+            self.word = word
+            self.start = start
+            self.end = end
+
+    result: list = []
+    for w in words:
+        text = w.word  # may or may not have leading/trailing spaces
+        stripped = text.strip()
+
+        # Fragment: starts with a hyphen (e.g. "-grue", "-wrote")
+        is_hyphen_fragment = stripped.startswith("-") and len(stripped) > 1
+        # Also merge bare hyphens
+        is_bare_hyphen = stripped == "-"
+
+        if result and (is_hyphen_fragment or is_bare_hyphen):
+            prev = result[-1]
+            # Combine text: strip trailing space from prev, combine with fragment
+            merged_text = prev.word.rstrip() + stripped.lstrip("-")
+            result[-1] = _MergedWord(
+                word=merged_text + (" " if text.endswith(" ") else ""),
+                start=prev.start,
+                end=w.end,
+            )
+        else:
+            result.append(w)
+
+    return result
+
 
 def _group_words_into_lines(words: list, max_words: int = WORDS_PER_LINE) -> list[list]:
     """

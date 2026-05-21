@@ -1,8 +1,10 @@
 # Claude API
 anthropic>=0.49.0
 
-# Google Cloud
-google-cloud-texttospeech>=2.21.0
+# Google AI Studio (Gemini TTS + future Veo video generation)
+google-genai>=0.8.0
+
+# Google Cloud (storage + YouTube upload — Cloud TTS no longer used)
 google-cloud-storage>=2.19.0
 google-auth>=2.38.0
 google-auth-oauthlib>=1.2.0

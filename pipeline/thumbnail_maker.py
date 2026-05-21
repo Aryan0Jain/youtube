@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,111 @@ from pipeline.base import PipelineStage, JobContext
 log = logging.getLogger(__name__)
 
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
+
+# ---------------------------------------------------------------------------
+# Imagen 4 background generation
+# ---------------------------------------------------------------------------
+
+# Per-niche cinematic prompt templates.
+# {subject} is replaced with a cleaned version of the video topic.
+_NICHE_IMAGEN_PROMPTS: dict[str, str] = {
+    "ranking": (
+        "cinematic ultra-wide shot depicting {subject}, massive scale and dramatic impact, "
+        "epic atmosphere, golden hour lighting, dust clouds, debris, crowd of people for scale, "
+        "photorealistic, 4K, sharp focus, high contrast, no text, no words, no captions"
+    ),
+    "horror": (
+        "dark atmospheric horror scene of {subject}, deep shadows, eerie cold lighting, "
+        "abandoned location, fog, sense of dread and mystery, cinematic thriller aesthetic, "
+        "no text, no words, no captions"
+    ),
+    "shock_facts": (
+        "stunning dramatic visualization of {subject}, awe-inspiring scale, "
+        "vibrant colors, scientific accuracy, photorealistic, dramatic studio lighting, "
+        "no text, no words, no captions"
+    ),
+    "quiz": (
+        "vibrant colorful knowledge concept for {subject}, world maps, icons, geography, "
+        "bright engaging colors, clean composition, no text, no words, no captions"
+    ),
+    "historical_versus": (
+        "epic historical scene depicting {subject}, dramatic confrontation between two forces, "
+        "cinematic lighting, period-accurate details, oil-painting realism, "
+        "no text, no words, no captions"
+    ),
+    "myth_busting": (
+        "dramatic investigative reveal scene about {subject}, split between illusion and reality, "
+        "high contrast lighting, cracked surface revealing truth beneath, "
+        "documentary cinematic style, no text, no words, no captions"
+    ),
+    "what_if": (
+        "surreal sci-fi concept visualization of {subject}, alternate reality sky, "
+        "futuristic atmospheric elements, photorealistic CGI quality, cinematic scope, "
+        "no text, no words, no captions"
+    ),
+}
+
+_DEFAULT_IMAGEN_PROMPT = (
+    "cinematic dramatic scene depicting {subject}, high impact visuals, "
+    "professional photography, dramatic lighting, no text, no words, no captions"
+)
+
+# Prefixes to strip from topic strings before building the visual prompt
+_TOPIC_STRIP_RE = re.compile(
+    r"^(top\s+\d+|what\s+if|the\s+truth\s+about|debunking|"
+    r"history\s+of|facts\s+about)\s*[:\-–]?\s*",
+    re.IGNORECASE,
+)
+
+
+def _topic_to_subject(topic: str) -> str:
+    """Strip meta-prefixes ('Top 10', 'What If') to get a visual noun phrase."""
+    return _TOPIC_STRIP_RE.sub("", topic).strip() or topic
+
+
+def _generate_imagen_background(topic: str, niche: str,
+                                 workspace: Path, W: int, H: int) -> Path | None:
+    """
+    Generate a cinematic background image with Imagen 4 (Fast).
+
+    Returns the saved JPEG path on success, or None on any error
+    (caller falls back to video-frame extraction).
+
+    Uses GEMINI_API_KEY from environment (already present in .env).
+    """
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        log.debug("GEMINI_API_KEY not set — skipping Imagen background")
+        return None
+
+    subject = _topic_to_subject(topic)
+    template = _NICHE_IMAGEN_PROMPTS.get(niche, _DEFAULT_IMAGEN_PROMPT)
+    prompt = template.format(subject=subject)
+
+    try:
+        import google.genai as genai
+        from PIL import Image
+        import io
+
+        client = genai.Client(api_key=api_key)
+        log.info(f"Generating Imagen 4 background for: {subject!r}")
+        response = client.models.generate_images(
+            model="imagen-4.0-fast-generate-001",
+            prompt=prompt,
+            config=genai.types.GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio="16:9",
+            ),
+        )
+        raw_bytes = response.generated_images[0].image.image_bytes
+        img = Image.open(io.BytesIO(raw_bytes)).convert("RGB").resize((W, H))
+        out = workspace / "thumb_bg.jpg"
+        img.save(str(out), "JPEG", quality=92)
+        log.info(f"Imagen 4 background saved: {out} ({len(raw_bytes)//1024}KB)")
+        return out
+
+    except Exception as exc:
+        log.warning(f"Imagen 4 generation failed ({exc}) — falling back to video frame")
 
 
 @dataclass(frozen=True)
@@ -48,16 +154,27 @@ def _generate_thumbnail(topic: str, niche: str, spec, video_path: Path | None,
     W, H = spec.thumb_width, spec.thumb_height
     output_path = workspace / "thumbnail.jpg"
 
-    # Base image: try to use a frame from the video
-    if video_path and video_path.exists():
+    # Base image priority:
+    #   1. Imagen 4 generated cinematic background (free, best CTR)
+    #   2. Frame extracted from the assembled video
+    #   3. Solid colour gradient (last resort)
+    img = None
+
+    imagen_path = _generate_imagen_background(topic, niche, workspace, W, H)
+    if imagen_path and imagen_path.exists():
+        img = Image.open(imagen_path).convert("RGB")
+        log.info("Thumbnail base: Imagen 4 generated background")
+
+    if img is None and video_path and video_path.exists():
         frame_path = workspace / "thumb_frame.jpg"
         _extract_frame(video_path, frame_path)
         if frame_path.exists() and frame_path.stat().st_size > 0:
             img = Image.open(frame_path).convert("RGB").resize((W, H))
-        else:
-            img = _gradient_background(W, H, style)
-    else:
+            log.info("Thumbnail base: video frame fallback")
+
+    if img is None:
         img = _gradient_background(W, H, style)
+        log.info("Thumbnail base: gradient fallback")
 
     draw = ImageDraw.Draw(img)
 

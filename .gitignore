@@ -11,6 +11,7 @@ dev/
 logs/
 workspace/
 data/
+devtest_*.txt
 __pycache__/
 *.py[cod]
 *.pyo

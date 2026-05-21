@@ -69,17 +69,36 @@ class ClipFetcher(PipelineStage):
         else:
             log.info(f"Audio duration: {audio_duration:.1f}s")
 
-        # Step 1: Extract one keyword per 30-second segment
-        log.info(f"Extracting segment keywords for ~{audio_duration:.0f}s audio "
-                 f"({SEGMENT_DURATION_SEC:.0f}s/segment)...")
-        segment_keywords = claude_client.extract_segment_keywords(
-            script_text=script,
-            segment_duration_sec=SEGMENT_DURATION_SEC,
-            audio_duration_sec=audio_duration,
-            haiku_model=haiku_model,
-            niche=ctx.niche,
+        # Step 1: Extract keywords — one per rank entry for ranking niche,
+        #         or one per 30-second segment for all other niches.
+        rank_items = (
+            ctx.niche_metadata.get("items", [])
+            if ctx.niche == "ranking" and ctx.niche_metadata
+            else []
         )
-        log.info(f"Segment keywords ({len(segment_keywords)}): {segment_keywords}")
+
+        if rank_items:
+            log.info(
+                f"Ranking niche: extracting per-rank keywords "
+                f"({len(rank_items)} rank entries)..."
+            )
+            segment_keywords = claude_client.extract_ranking_clip_keywords(
+                rank_items=rank_items,
+                script_text=script,
+                haiku_model=haiku_model,
+            )
+            log.info(f"Per-rank keywords ({len(segment_keywords)}): {segment_keywords}")
+        else:
+            log.info(f"Extracting segment keywords for ~{audio_duration:.0f}s audio "
+                     f"({SEGMENT_DURATION_SEC:.0f}s/segment)...")
+            segment_keywords = claude_client.extract_segment_keywords(
+                script_text=script,
+                segment_duration_sec=SEGMENT_DURATION_SEC,
+                audio_duration_sec=audio_duration,
+                haiku_model=haiku_model,
+                niche=ctx.niche,
+            )
+            log.info(f"Segment keywords ({len(segment_keywords)}): {segment_keywords}")
 
         # Step 2: Download clips_per_segment clips per keyword, deduplicating by Pexels video ID
         rate_buffer = ctx.resolved.get("pexels", {}).get("rate_limit_buffer", 5)

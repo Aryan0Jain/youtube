@@ -1,4 +1,5 @@
 import logging
+import os
 import shutil
 import threading
 import time
@@ -17,6 +18,7 @@ from pipeline.clip_fetcher import ClipFetcher
 from pipeline.video_assembler import VideoAssembler
 from pipeline.thumbnail_maker import ThumbnailMaker
 from pipeline.youtube_uploader import YouTubeUploader
+from pipeline.telegram_notifier import TelegramNotifier
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ STAGES = [
     VideoAssembler(),
     ThumbnailMaker(),
     YouTubeUploader(),
+    TelegramNotifier(),    # sends review notification after upload
 ]
 
 _pipeline_lock = threading.Lock()
@@ -152,7 +155,13 @@ def _cleanup_workspace(db: StateDB, job: dict):
 def start_background(db: StateDB, workspace_root: Path, base_dir: Path | None = None,
                      poll_interval: int = 30, max_retries: int = 3,
                      retry_backoff: int = 300) -> threading.Thread:
-    """Start the orchestrator in a daemon background thread."""
+    """
+    Start the orchestrator in a daemon background thread.
+    Also starts the Telegram callback poller if TELEGRAM_BOT_TOKEN is set.
+    """
+    if base_dir is None:
+        base_dir = Path(__file__).parent.parent
+
     thread = threading.Thread(
         target=_run_loop,
         args=(db, workspace_root, base_dir, poll_interval, max_retries, retry_backoff),
@@ -160,6 +169,24 @@ def start_background(db: StateDB, workspace_root: Path, base_dir: Path | None = 
         name="orchestrator",
     )
     thread.start()
+
+    # Start Telegram callback poller if credentials are available
+    try:
+        from core.config_loader import load_master_infra
+        import yaml
+        master_path = base_dir / "config" / "master.yaml"
+        with open(master_path, encoding="utf-8") as f:
+            master = yaml.safe_load(f)
+        tg_cfg = master.get("telegram", {})
+        bot_token = os.environ.get(tg_cfg.get("bot_token_env", "TELEGRAM_BOT_TOKEN"), "")
+        if bot_token:
+            from integrations import telegram_client
+            telegram_client.start_callback_poller(bot_token, db, base_dir)
+        else:
+            log.info("Telegram callback poller not started (TELEGRAM_BOT_TOKEN not set)")
+    except Exception as exc:
+        log.warning(f"Could not start Telegram callback poller: {exc}")
+
     return thread
 
 

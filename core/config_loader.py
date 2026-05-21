@@ -16,13 +16,17 @@ class ConfigValidationError(Exception):
 
 @dataclass
 class TopicSourceConfig:
-    type: str                        # "google_sheet" | "claude_autogen"
+    type: str                        # "google_sheet" | "claude_autogen" | "trend_autogen"
     sheet_id: str | None = None
     tab_name: str | None = None
     topic_column: str | None = None
     used_column: str | None = None
     autogen_prompt: str | None = None
     avoid_recent_topics: bool = False
+    # trend_autogen fields
+    opportunity_threshold: int = 5
+    timeframe: str = "now 7-d"
+    fallback_autogen_prompt: str | None = None
 
 
 @dataclass
@@ -82,9 +86,9 @@ def _require(data: dict, key: str, source_file: str, path: str) -> Any:
 
 def _load_topic_source(raw: dict, source_file: str, ctx: str) -> TopicSourceConfig:
     ts_type = _require(raw, "type", source_file, ctx)
-    if ts_type not in ("google_sheet", "claude_autogen"):
+    if ts_type not in ("google_sheet", "claude_autogen", "trend_autogen"):
         raise ConfigValidationError(source_file, f"{ctx}.type",
-                                    f"must be 'google_sheet' or 'claude_autogen', got '{ts_type}'")
+                                    f"must be 'google_sheet', 'claude_autogen', or 'trend_autogen', got '{ts_type}'")
 
     if ts_type == "google_sheet":
         return TopicSourceConfig(
@@ -95,10 +99,20 @@ def _load_topic_source(raw: dict, source_file: str, ctx: str) -> TopicSourceConf
             used_column=raw.get("used_column", "B"),
         )
 
+    if ts_type == "claude_autogen":
+        return TopicSourceConfig(
+            type=ts_type,
+            autogen_prompt=_require(raw, "autogen_prompt", source_file, ctx),
+            avoid_recent_topics=raw.get("avoid_recent_topics", False),
+        )
+
+    # trend_autogen
     return TopicSourceConfig(
         type=ts_type,
-        autogen_prompt=_require(raw, "autogen_prompt", source_file, ctx),
-        avoid_recent_topics=raw.get("avoid_recent_topics", False),
+        opportunity_threshold=int(raw.get("opportunity_threshold", 5)),
+        timeframe=raw.get("timeframe", "now 7-d"),
+        fallback_autogen_prompt=raw.get("fallback_autogen_prompt"),
+        avoid_recent_topics=raw.get("avoid_recent_topics", True),
     )
 
 
@@ -155,6 +169,7 @@ def load_all(base_dir: Path | None = None) -> dict[str, ChannelConfig]:
     infra: dict = master.get("infrastructure", {})
     claude_cfg: dict = master.get("claude", {})
     pexels_cfg: dict = master.get("pexels", {})
+    telegram_cfg: dict = master.get("telegram", {})
 
     channels: dict[str, ChannelConfig] = {}
     channels_dir = base_dir / "config" / "channels"
@@ -181,6 +196,7 @@ def load_all(base_dir: Path | None = None) -> dict[str, ChannelConfig]:
         channel_defaults["claude"] = claude_cfg
         channel_defaults["pexels"] = pexels_cfg
         channel_defaults["infrastructure"] = infra
+        channel_defaults["telegram"] = telegram_cfg
 
         raw_series = raw.get("series", [])
         if not raw_series:

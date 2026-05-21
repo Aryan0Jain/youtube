@@ -38,6 +38,10 @@ class JobContext:
     # Schema: {"overlay_type": str, "items": list|dict} — empty dict = no overlays
     niche_metadata: dict = field(default_factory=dict)
 
+    # Emotional keywords for bold subtitle emphasis (filled by script_writer)
+    # List of lowercase single words, e.g. ["collapsed", "drowned", "deadliest"]
+    emotional_keywords: list[str] = field(default_factory=list)
+
     # Generated metadata (filled by script_writer for youtube_uploader)
     video_title: str = ""
     video_description: str = ""

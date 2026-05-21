@@ -41,6 +41,14 @@ series:
       #   Return only the topic title, nothing else.
       # avoid_recent_topics: true        # skip topics used in last 90 days
 
+      # --- trend_autogen options ---
+      # type: trend_autogen              # uses Google Trends + YouTube coverage + Claude ranking
+      # opportunity_threshold: 5         # min opportunity score (1-10); higher = less saturated topics
+      # timeframe: "now 7-d"             # Google Trends window: "now 1-d" | "now 7-d" | "now 1-m"
+      # avoid_recent_topics: true        # skip topics used in last 90 days (recommended)
+      # fallback_autogen_prompt: >       # Claude prompt used if trend discovery fails
+      #   Generate a compelling YouTube topic about X. Return only the title.
+
     # Optional: series-level overrides (highest priority, wins over channel + master)
     overrides:
       tts_speaking_rate: 1.0
