@@ -232,11 +232,19 @@ class StateDB:
 
     # ── Upload tracking ────────────────────────────────────────────────────────
 
+    def get_upload_by_job(self, job_id: int) -> dict | None:
+        """Return the upload row for a given job_id, or None if not yet uploaded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM uploads WHERE job_id = ? LIMIT 1", (job_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
     def record_upload(self, job_id: int, channel_id: str,
                       youtube_video_id: str, title: str, url: str):
         with self._conn() as conn:
             conn.execute(
-                """INSERT INTO uploads (job_id, channel_id, youtube_video_id, title, published_at, url)
+                """INSERT OR IGNORE INTO uploads (job_id, channel_id, youtube_video_id, title, published_at, url)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (job_id, channel_id, youtube_video_id, title, _now_utc(), url),
             )

@@ -69,6 +69,12 @@ class YouTubeUploader(PipelineStage):
         video_id = _execute_resumable_upload(request)
         log.info(f"Uploaded: video_id={video_id}")
 
+        # Persist video_id immediately so retries detect and skip re-uploading
+        ctx.youtube_video_id = video_id
+        ctx.db.record_upload(ctx.job_id, ctx.channel_id, video_id,
+                             ctx.video_title or ctx.topic,
+                             f"https://youtu.be/{video_id}")
+
         # Set thumbnail (non-fatal — requires YouTube channel to be verified)
         if ctx.thumbnail_path and ctx.thumbnail_path.exists():
             try:
@@ -90,9 +96,17 @@ class YouTubeUploader(PipelineStage):
             _update_privacy(client, video_id, privacy)
 
         url = f"https://youtu.be/{video_id}"
-        ctx.youtube_video_id = video_id
-        ctx.db.record_upload(ctx.job_id, ctx.channel_id, video_id, ctx.video_title, url)
         log.info(f"Published ({privacy}): {url}")
+        return ctx
+
+    def _load_from_checkpoint(self, ctx: JobContext) -> JobContext:
+        """If this job already has a completed upload, restore the video_id to skip re-uploading."""
+        existing = ctx.db.get_upload_by_job(ctx.job_id)
+        if existing:
+            ctx.youtube_video_id = existing["youtube_video_id"]
+            log.info(
+                f"Checkpoint: video already uploaded ({ctx.youtube_video_id}) — skipping re-upload"
+            )
         return ctx
 
 
