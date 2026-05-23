@@ -69,9 +69,16 @@ class YouTubeUploader(PipelineStage):
         video_id = _execute_resumable_upload(request)
         log.info(f"Uploaded: video_id={video_id}")
 
-        # Set thumbnail
+        # Set thumbnail (non-fatal — requires YouTube channel to be verified)
         if ctx.thumbnail_path and ctx.thumbnail_path.exists():
-            _set_thumbnail(client, video_id, ctx.thumbnail_path)
+            try:
+                _set_thumbnail(client, video_id, ctx.thumbnail_path)
+            except Exception as exc:
+                log.warning(
+                    f"Custom thumbnail upload skipped ({exc}). "
+                    "To enable: YouTube Studio → Settings → Channel → "
+                    "Feature eligibility → Custom thumbnail."
+                )
 
         # Assign to playlist if configured
         playlist_id = ctx.resolved.get("playlist_id") or ""

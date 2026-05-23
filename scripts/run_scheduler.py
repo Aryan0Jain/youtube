@@ -27,7 +27,9 @@ logging.basicConfig(
     format="%(asctime)s UTC [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(BASE_DIR / "logs" / "system.log", encoding="utf-8"),
+        # FileHandler removed: gunicorn master + worker both inherit it, causing
+        # duplicate log lines. systemd captures stdout → logs/system.log instead
+        # (StandardOutput=append:... in the service file).
     ],
 )
 log = logging.getLogger(__name__)
