@@ -49,7 +49,7 @@ _DEFAULT_SUBTITLE_STYLE = (
 def _run_ffmpeg(args: list[str], label: str = "ffmpeg") -> None:
     cmd = ["ffmpeg", "-y"] + args
     log.debug(f"FFmpeg [{label}]: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg [{label}] failed:\n{result.stderr[-3000:]}")
 
@@ -543,7 +543,7 @@ def _overlay_entity_cards(video_in: Path, items: list, total_words: int,
     for item in items[:8]:  # cap at 8 overlays
         ts = _word_idx_to_ts(item.get("word_idx", 0), total_words, audio_dur, word_ts_map)
         end = ts + 4.0
-        enable = f"between(t\\,{ts:.2f}\\,{end:.2f})"
+        enable = f"between(t,{ts:.2f},{end:.2f})"
 
         text = _escape_drawtext(str(item.get("text", "")).upper())
         role = _escape_drawtext(str(item.get("role", "")))
@@ -593,7 +593,7 @@ def _overlay_fact_counter(video_in: Path, items: list, total_words: int,
             if i + 1 < len(sorted_items)
             else ts_start + 30.0
         )
-        enable = f"between(t\\,{ts_start:.2f}\\,{ts_end:.2f})"
+        enable = f"between(t,{ts_start:.2f},{ts_end:.2f})"
 
         number = item.get("number", i + 1)
         headline = _escape_drawtext(str(item.get("headline", f"FACT #{number}")))
@@ -755,7 +755,7 @@ def _overlay_ranking_cards(video_in: Path, items: list, total_words: int,
             name_color = "white"
 
         end = ts + duration
-        enable = f"between(t\\,{ts:.2f}\\,{end:.2f})"
+        enable = f"between(t,{ts:.2f},{end:.2f})"
 
         # Semi-transparent background box
         box = (f"drawbox=x=0:y=ih-{box_h}:w=iw:h={box_h}:"
@@ -819,8 +819,8 @@ def _overlay_myth_stamp(video_in: Path, items, total_words: int,
     verdict_word = str(items.get("verdict", "BUSTED")).upper()
     verdict_color = "red" if verdict_word == "CONFIRMED" else "0x00FF44"
 
-    myth_enable = f"between(t\\,{myth_ts:.2f}\\,{verdict_ts:.2f})"
-    verdict_enable = f"between(t\\,{verdict_ts:.2f}\\,{verdict_ts + 6.0:.2f})"
+    myth_enable = f"between(t,{myth_ts:.2f},{verdict_ts:.2f})"
+    verdict_enable = f"between(t,{verdict_ts:.2f},{verdict_ts + 6.0:.2f})"
 
     vf_parts = [
         (f"drawtext=text='MYTH':"
@@ -862,7 +862,7 @@ def _overlay_scale_text(video_in: Path, items: list, total_words: int,
             if i + 1 < len(sorted_items)
             else ts_start + 20.0
         )
-        enable = f"between(t\\,{ts_start:.2f}\\,{ts_end:.2f})"
+        enable = f"between(t,{ts_start:.2f},{ts_end:.2f})"
         label = _escape_drawtext(str(item.get("label", "")))
 
         vf_parts.append(
@@ -898,7 +898,7 @@ def _overlay_side_labels(video_in: Path, items: list, total_words: int,
     for item in items[:6]:
         ts = _word_idx_to_ts(item.get("word_idx", 0), total_words, audio_dur, word_ts_map)
         end = ts + 8.0
-        enable = f"between(t\\,{ts:.2f}\\,{end:.2f})"
+        enable = f"between(t,{ts:.2f},{end:.2f})"
 
         side_a = _escape_drawtext(str(item.get("side_a", "")))
         side_b = _escape_drawtext(str(item.get("side_b", "")))
@@ -943,8 +943,8 @@ def _overlay_quiz(video_in: Path, items: list, total_words: int,
         ts = _word_idx_to_ts(item.get("word_idx", 0), total_words, audio_dur, word_ts_map)
         ans_ts = ts + 8.0  # reveal answer ~8s after question
         end = ts + 18.0
-        q_enable = f"between(t\\,{ts:.2f}\\,{ans_ts:.2f})"
-        a_enable = f"between(t\\,{ans_ts:.2f}\\,{end:.2f})"
+        q_enable = f"between(t,{ts:.2f},{ans_ts:.2f})"
+        a_enable = f"between(t,{ans_ts:.2f},{end:.2f})"
 
         question = _escape_drawtext(str(item.get("question", "")))
         answer = _escape_drawtext(str(item.get("answer", "")))
