@@ -124,13 +124,32 @@ check("jobs CRUD", _db_jobs)
 def _db_reviews():
     from core.state_db import StateDB
     db = StateDB(":memory:")
-    db.add_pending_review(1, "ch", "vid1", 42, "Title", "https://youtu.be/vid1")
+    jid = db.create_job("ch", "s", "T", "full_length")
+    db.add_pending_review(jid, "ch", "vid1", 42, "Title", "https://youtu.be/vid1")
     rows = db.get_pending_reviews()
     assert len(rows) == 1 and rows[0]["youtube_video_id"] == "vid1"
+    # has_pending_review blocks new jobs while pending
+    assert db.has_pending_review("ch") is True
+    assert db.has_pending_review("other_ch") is False
     db.update_review_status("vid1", "published")
     assert db.get_pending_review("vid1")["status"] == "published"
+    assert db.has_pending_review("ch") is False  # cleared after publish
 
 check("pending_reviews CRUD", _db_reviews)
+
+
+def _db_active_job():
+    from core.state_db import StateDB
+    db = StateDB(":memory:")
+    assert db.has_active_job("ch", "s") is False
+    jid = db.create_job("ch", "s", "T", "full_length")  # status='queued'
+    assert db.has_active_job("ch", "s") is True
+    db.mark_running(jid)
+    assert db.has_active_job("ch", "s") is True
+    db.mark_completed(jid)
+    assert db.has_active_job("ch", "s") is False
+
+check("has_active_job guard", _db_active_job)
 
 def _db_topics():
     from core.state_db import StateDB
@@ -190,7 +209,7 @@ check("no hardcoded secrets in source", _secret_scan)
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print()
-total = len(MODULES) + 8  # module imports + other checks
+total = len(MODULES) + 9  # module imports + other checks
 if failures:
     print(f"❌  {len(failures)} check(s) FAILED: {failures}")
     sys.exit(1)

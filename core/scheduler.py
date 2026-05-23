@@ -36,6 +36,25 @@ def _enqueue_series_job(channel_id: str, series_id: str):
             log.error(f"Scheduler fired for unknown series '{channel_id}/{series_id}'")
             return
 
+        # Guard 1: don't produce a new video while the previous one is still
+        # sitting in the Telegram review queue (unapproved/unpublished).
+        if _db.has_pending_review(channel_id):
+            log.info(
+                f"[{channel_id}/{series_id}] Skipping schedule — previous video still "
+                "awaiting Telegram review. Approve or reject it first."
+            )
+            return
+
+        # Guard 2: a job for this series is already queued or running — no need
+        # to add another one (handles cases where the cron fires twice or the
+        # previous run stalled).
+        if _db.has_active_job(channel_id, series_id):
+            log.info(
+                f"[{channel_id}/{series_id}] Skipping schedule — job already "
+                "queued or running."
+            )
+            return
+
         topic = _claim_topic(channel, series)
         if not topic:
             return  # warning already logged in _claim_topic

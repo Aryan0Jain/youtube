@@ -343,6 +343,26 @@ class StateDB:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def has_pending_review(self, channel_id: str) -> bool:
+        """Return True if the channel has at least one video awaiting Telegram review."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM pending_reviews WHERE channel_id=? AND status='pending' LIMIT 1",
+                (channel_id,),
+            ).fetchone()
+            return row is not None
+
+    def has_active_job(self, channel_id: str, series_id: str) -> bool:
+        """Return True if there is already a queued or running job for this series."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """SELECT 1 FROM jobs
+                   WHERE channel_id=? AND series_id=? AND status IN ('queued','running')
+                   LIMIT 1""",
+                (channel_id, series_id),
+            ).fetchone()
+            return row is not None
+
     # ── Orphan recovery ────────────────────────────────────────────────────────
 
     def reset_orphaned_running_jobs(self):
